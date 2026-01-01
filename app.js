@@ -144,20 +144,16 @@
   };
 
   // ------------- Firestore access control -------------
-  async function findMyFamilyId(user) {
-    // Simple approach for now:
-    // Search for a family where families/{familyId}/members/{uid} exists.
-    // We do this by trying known families:
-    // In practice, we’ll add a user profile pointer later, but this works for “single family” setup.
+ const FAMILY_ID = "PASTE_YOUR_FAMILY_DOC_ID_HERE";
 
-    const familiesSnap = await db.collection("families").limit(50).get();
-    for (const famDoc of familiesSnap.docs) {
-      const memberRef = db.collection("families").doc(famDoc.id).collection("members").doc(user.uid);
-      const memberSnap = await memberRef.get();
-      if (memberSnap.exists) return famDoc.id;
-    }
-    return null;
-  }
+async function findMyFamilyId(user) {
+  // Single-family MVP: no scanning, no listing.
+  // Just verify membership exists under the known familyId.
+  const memberRef = db.collection("families").doc(FAMILY_ID).collection("members").doc(user.uid);
+  const memberSnap = await memberRef.get();
+  return memberSnap.exists ? FAMILY_ID : null;
+}
+
 
   async function loadPeople(familyId) {
     const snap = await db.collection("families").doc(familyId).collection("people")
