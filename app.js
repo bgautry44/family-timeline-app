@@ -82,14 +82,30 @@
   completeEmailLinkSignin();
   wireLoginUI();
 
-  // Placeholder UI so you know the app is running
+  function setSignedOutUI() {
   const asOf = $("asOf");
   const count = $("count");
   const cards = $("cards");
   const empty = $("empty");
 
-  if (asOf) asOf.textContent = "Firebase wiring test: login only";
+  if (asOf) asOf.textContent = "";
   if (count) count.textContent = "";
   if (cards) cards.innerHTML = "";
-  if (empty) { empty.hidden = false; empty.textContent = "Sign in to continue."; }
+  if (empty) {
+    empty.hidden = false;
+    empty.textContent = "Please sign in to continue.";
+  }
+}
+
+function setSignedInUI(user) {
+  const empty = $("empty");
+  if (empty) empty.hidden = true;
+  // Next step: we will load Firestore data here
+}
+
+auth.onAuthStateChanged((user) => {
+  if (user) setSignedInUI(user);
+  else setSignedOutUI();
+});
+
 })();
