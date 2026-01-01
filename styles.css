@@ -1,0 +1,88 @@
+:root{
+  --bg:#0b0f14;
+  --card:#121826;
+  --muted:#9fb0c6;
+  --text:#e8eef7;
+  --accent:#ff7a1a;
+  --border:#243248;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background:linear-gradient(180deg, #070a0f 0%, #0b0f14 40%, #0b0f14 100%);
+  color:var(--text);
+}
+.container{
+  width:min(980px, 92vw);
+  margin:0 auto;
+}
+.app-header{
+  border-bottom:1px solid var(--border);
+  background:rgba(10,14,20,.7);
+  backdrop-filter: blur(10px);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+h1{
+  margin:0;
+  padding:18px 0 6px;
+  font-size:22px;
+}
+.subtitle{
+  margin:0 0 10px;
+  color:var(--muted);
+  font-size:13px;
+}
+.controls{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+  padding:10px 0;
+}
+.controls input, .controls button{
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#0e1422;
+  color:var(--text);
+  font-size:13px;
+}
+.controls input{
+  flex:1 1 260px;
+  min-width:200px;
+}
+.meta{
+  display:flex;
+  gap:14px;
+  justify-content:space-between;
+  padding:10px 0 16px;
+  color:var(--muted);
+  font-size:12px;
+}
+.cards{
+  display:grid;
+  grid-template-columns: repeat( auto-fit, minmax(240px, 1fr) );
+  gap:12px;
+  padding:14px 0 18px;
+}
+.card{
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6));
+  padding:14px 14px 12px;
+}
+.empty{
+  color:var(--muted);
+  text-align:center;
+  padding:28px 0;
+}
+.birthdayLine{
+  margin:8px 0 6px;
+  font-size:13px;
+  color:var(--muted);
+}
+.birthdayLine strong{ color: var(--text); font-weight:600; }
