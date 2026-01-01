@@ -50,8 +50,9 @@
           alert("Login link sent. Open your email on this phone and tap the link.");
         } catch (err) {
           console.error(err);
-          alert("Could not send link. Check the email address and try again.");
+          alert(`Could not send link.\n\nError: ${err.code || "unknown"}\n${err.message || ""}`);
         } finally {
+
           sendBtn.disabled = false;
           sendBtn.textContent = "Send login link";
         }
