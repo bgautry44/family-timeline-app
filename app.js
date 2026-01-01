@@ -144,7 +144,7 @@
   };
 
   // ------------- Firestore access control -------------
- const FAMILY_ID = "PASTE_YOUR_FAMILY_DOC_ID_HERE";
+ const FAMILY_ID = "e538i47rIjVIS7xGdCtC";
 
 async function findMyFamilyId(user) {
   // Single-family MVP: no scanning, no listing.
