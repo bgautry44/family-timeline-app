@@ -63,6 +63,25 @@ h1{
   color:var(--muted);
   font-size:12px;
 }
+.name{
+  font-weight:700;
+  font-size:16px;
+  line-height:1.25;
+  margin:0 0 6px;
+}
+
+.cardTop{
+  display:flex;
+  gap:14px;
+  align-items:center;
+  margin-bottom:14px;
+}
+
+.cardTopText{
+  flex:1 1 auto;
+  min-width:0;
+}
+
 .cards{
   display:grid;
   grid-template-columns: repeat( auto-fit, minmax(240px, 1fr) );
@@ -73,8 +92,48 @@ h1{
   border:1px solid var(--border);
   border-radius:16px;
   background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6));
-  padding:14px 14px 12px;
+  padding:16px 16px 14px;
 }
+
+.row{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  margin:10px 0;
+  font-size:13px;
+  line-height:1.4;
+  color:var(--muted);
+}
+
+.memorialMark{
+  font-size:12px;
+  color:var(--accent);
+  margin-top:2px;
+}
+
+.memorialYears{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:2px;
+}
+
+.wouldHaveTurned{
+  margin-top:14px;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,0.08);
+  font-size:13px;
+  line-height:1.45;
+  color:var(--text);
+}
+
+
+.value{
+  color:var(--text);
+  font-weight:600;
+  text-align:right;
+  max-width:55%;
+}
+
 .empty{
   color:var(--muted);
   text-align:center;
