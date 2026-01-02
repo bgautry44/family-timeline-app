@@ -164,7 +164,14 @@
 
     if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
 
-    const url = await storage.ref(storagePath).getDownloadURL();
+    let url = null;
+    try {
+    url = await storage.ref(storagePath).getDownloadURL();
+  } catch (e) {
+    console.error("getDownloadURL failed for:", storagePath, e?.code, e?.message);
+    throw e;
+  }
+
     photoUrlCache.set(storagePath, url);
     return url;
   }
