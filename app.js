@@ -12,10 +12,13 @@
   // ============================
   const auth = (window.auth) ? window.auth : (window.firebase ? window.firebase.auth() : null);
   const db = (window.db) ? window.db : (window.firebase ? window.firebase.firestore() : null);
+  const storage = (window.storage) ? window.storage : (window.firebase ? window.firebase.storage() : null);
 
-  if (!auth || !db) {
-    console.error("Firebase auth/db not found. Ensure firebase compat scripts are loaded and firebase.initializeApp() has run.");
-  }
+
+  if (!auth || !db || !storage) {
+  console.error("Firebase auth/db/storage not found. Ensure firebase compat scripts are loaded and firebase.initializeApp() has run.");
+}
+
 
   // Email link sign-in settings
   const actionCodeSettings = {
@@ -129,12 +132,16 @@
   // - prefer r.photos (array)
   // - else fall back to r.photo (single string)
   function photoList(r) {
-    const arr = Array.isArray(r?.photos) ? r.photos : null;
-    if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
+  // Prefer resolved Storage URLs
+  if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
 
-    const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
-    return single ? [single] : [];
-  }
+  const arr = Array.isArray(r?.photos) ? r.photos : null;
+  if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
+
+  const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
+  return single ? [single] : [];
+}
+
 
   // -----------------------
   // Data computation
@@ -264,6 +271,59 @@
     const snap2 = await ref.get();
     return snap2.exists ? snap2.data() : null;
   }
+  // -----------------------
+// Storage photo URL resolving
+// -----------------------
+const photoUrlCache = new Map(); // key: storagePath, value: downloadUrl
+
+function normalizePhotoPaths(r) {
+  const arr = Array.isArray(r?.photos) ? r.photos : [];
+  const single = (typeof r?.photo === "string" && r.photo.trim()) ? [r.photo.trim()] : [];
+
+  return [...arr, ...single]
+    .map(x => (x == null ? "" : String(x).trim()))
+    .filter(Boolean);
+}
+
+async function getDownloadUrlForPath(storagePath) {
+  if (!storagePath) return null;
+
+  // If it's already a URL, return as-is
+  if (/^https?:\/\//i.test(storagePath)) return storagePath;
+
+  if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
+
+  const url = await storage.ref(storagePath).getDownloadURL();
+  photoUrlCache.set(storagePath, url);
+  return url;
+}
+
+async function hydratePeoplePhotoUrls(peopleArray) {
+  if (!Array.isArray(peopleArray) || !peopleArray.length) return peopleArray;
+
+  for (const p of peopleArray) {
+    const paths = normalizePhotoPaths(p);
+
+    if (!paths.length) {
+      p._photoUrls = [];
+      continue;
+    }
+
+    const urls = [];
+    for (const path of paths) {
+      try {
+        const u = await getDownloadUrlForPath(path);
+        if (u) urls.push(u);
+      } catch (e) {
+        console.warn("Could not load photo URL for:", path, e);
+      }
+    }
+    p._photoUrls = urls;
+  }
+
+  return peopleArray;
+}
+
   async function loadPeopleOnce() {
   if (!state.user) return;
   if (!state.familyId || state.familyId.includes("PASTE_")) {
@@ -277,7 +337,10 @@
   const snap = await peopleRef.get();
 
   // Build array from Firestore
-  const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  await hydratePeoplePhotoUrls(arr);
+  state.data = arr;
+
 
   // Dedupe by (normalized name + birthdate)
   const seen = new Map();
