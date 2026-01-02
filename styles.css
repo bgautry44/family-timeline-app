@@ -70,17 +70,50 @@ h1{
   margin:0 0 6px;
 }
 
+/* --- Photo / avatar support --- */
 .cardTop{
   display:flex;
-  gap:14px;
+  gap:12px;
   align-items:center;
-  margin-bottom:14px;
+  margin:0 0 10px;
+}
+
+.avatarWrap{
+  position:relative;
+  width:56px;
+  height:56px;
+  flex:0 0 auto;
+}
+
+.avatar{
+  width:56px;
+  height:56px;
+  border-radius:999px;
+  object-fit:cover;
+  display:block;
+  border:1px solid rgba(255,255,255,0.14);
+  background:#0e1422;
+}
+
+/* If no photo */
+.avatar.placeholder{
+  width:56px;
+  height:56px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  font-size:12px;
+  border:1px solid rgba(255,255,255,0.14);
+  background:#0e1422;
 }
 
 .cardTopText{
   flex:1 1 auto;
   min-width:0;
 }
+
 
 .cards{
   display:grid;
