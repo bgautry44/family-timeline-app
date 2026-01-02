@@ -478,6 +478,7 @@
 
       const avatarHtml = photos.length
         ? `
+          <div class="cardTop">
           <div class="avatarWrap">
             <img class="avatar" alt="${escapeHtml(r.name || "Photo")}" loading="lazy" />
             ${
