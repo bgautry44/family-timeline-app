@@ -8,17 +8,17 @@
 
   // ============================
   // Firebase (compat)
-  // Requires global: firebase, auth, db OR firebase.auth()/firebase.firestore()
+  // Requires global: firebase + compat SDK scripts + firebase.initializeApp() in firebase.js
   // ============================
-  const auth = (window.auth) ? window.auth : (window.firebase ? window.firebase.auth() : null);
-  const db = (window.db) ? window.db : (window.firebase ? window.firebase.firestore() : null);
-  const storage = (window.storage) ? window.storage : (window.firebase ? window.firebase.storage() : null);
-
+  const auth = window.auth ? window.auth : (window.firebase ? window.firebase.auth() : null);
+  const db = window.db ? window.db : (window.firebase ? window.firebase.firestore() : null);
+  const storage = window.storage ? window.storage : (window.firebase ? window.firebase.storage() : null);
 
   if (!auth || !db || !storage) {
-  console.error("Firebase auth/db/storage not found. Ensure firebase compat scripts are loaded and firebase.initializeApp() has run.");
-}
-
+    console.error(
+      "Firebase auth/db/storage not found. Ensure compat scripts are loaded and firebase.initializeApp() has run (firebase.js)."
+    );
+  }
 
   // Email link sign-in settings
   const actionCodeSettings = {
@@ -26,9 +26,11 @@
     handleCodeInApp: true
   };
 
+  // ============================
   // App state
+  // ============================
   const state = {
-    data: [],                 // loaded from Firestore
+    data: [],
     showDeceased: true,
     sortOldestFirst: true,
     q: "",
@@ -36,14 +38,20 @@
     familyId: FAMILY_ID
   };
 
-  // -----------------------
+  // ============================
   // Helpers
-  // -----------------------
-  function normalize(s) { return (s || "").toString().toLowerCase().trim(); }
+  // ============================
+  function normalize(s) {
+    return (s || "").toString().toLowerCase().trim();
+  }
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (s) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
     }[s]));
   }
 
@@ -52,6 +60,7 @@
     return isNaN(dt.getTime()) ? null : dt;
   }
 
+  // Parse as LOCAL date to avoid 1-day shifts, supports Firestore Timestamp
   function parseISODate(v) {
     if (v == null || v === "") return null;
 
@@ -66,7 +75,7 @@
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
 
-    // YYYY-MM-DD
+    // ISO YYYY-MM-DD
     if (typeof v === "string") {
       const s = v.trim();
       const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -93,10 +102,10 @@
   function nextBirthdayDate(birth, today) {
     if (!birth) return null;
     const d = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
-    if (d < today) return new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
-    return d;
+    return (d < today) ? new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate()) : d;
   }
 
+  // Calendar-accurate Y/M/D difference
   function diffYMD(from, to) {
     let y = to.getFullYear() - from.getFullYear();
     let m = to.getMonth() - from.getMonth();
@@ -128,24 +137,76 @@
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
-  // Photos:
-  // - prefer r.photos (array)
-  // - else fall back to r.photo (single string)
+  // ============================
+  // Storage photo URL resolving
+  // ============================
+  const photoUrlCache = new Map(); // key: storagePath, value: downloadUrl
+
+  function normalizePhotoPaths(r) {
+    const list = [];
+
+    // photos can be array OR string; photo can be string
+    if (Array.isArray(r?.photos)) list.push(...r.photos);
+    else if (typeof r?.photos === "string" && r.photos.trim()) list.push(r.photos.trim());
+
+    if (typeof r?.photo === "string" && r.photo.trim()) list.push(r.photo.trim());
+
+    return list
+      .map(x => (x == null ? "" : String(x).trim()))
+      .filter(Boolean);
+  }
+
+  async function getDownloadUrlForPath(storagePath) {
+    if (!storagePath) return null;
+
+    // If already a URL, use as-is
+    if (/^https?:\/\//i.test(storagePath)) return storagePath;
+
+    if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
+
+    const url = await storage.ref(storagePath).getDownloadURL();
+    photoUrlCache.set(storagePath, url);
+    return url;
+  }
+
+  async function hydratePeoplePhotoUrls(peopleArray) {
+    if (!Array.isArray(peopleArray) || !peopleArray.length) return peopleArray;
+
+    for (const p of peopleArray) {
+      const paths = normalizePhotoPaths(p);
+      if (!paths.length) {
+        p._photoUrls = [];
+        continue;
+      }
+
+      const urls = [];
+      for (const path of paths) {
+        try {
+          const u = await getDownloadUrlForPath(path);
+          if (u) urls.push(u);
+        } catch (e) {
+          console.warn("Could not load photo URL for:", path, e);
+        }
+      }
+      p._photoUrls = urls;
+    }
+    return peopleArray;
+  }
+
+  // Photos used by carousel: prefer resolved _photoUrls
   function photoList(r) {
-  // Prefer resolved Storage URLs
-  if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
+    if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
 
-  const arr = Array.isArray(r?.photos) ? r.photos : null;
-  if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
+    const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
+    if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
 
-  const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
-  return single ? [single] : [];
-}
+    const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
+    return single ? [single] : [];
+  }
 
-
-  // -----------------------
+  // ============================
   // Data computation
-  // -----------------------
+  // ============================
   function computeRow(r) {
     const birth = parseISODate(r.birthdate);
     const passed = parseISODate(r.passed);
@@ -156,15 +217,15 @@
     const ref = passedEffective ?? today;
     const ageObj = birth ? diffYMD(birth, ref) : null;
 
-    // Living only: "Birthday Today"
+    // Living only: Birthday Today
     const isBirthdayToday = !!(birth && !passedEffective && sameMonthDay(birth, today));
 
-    // Deceased only: "Remembering [Name] today — would have turned X."
+    // Deceased only: would have turned X on birthday
     const wouldHaveTurned = (birth && passedEffective && sameMonthDay(birth, today))
       ? (today.getFullYear() - birth.getFullYear())
       : null;
 
-    // Upcoming birthdays line (filtered to living in render)
+    // For upcoming birthdays line (filtered to living in render)
     const nextBirthday = birth ? nextBirthdayDate(birth, today) : null;
 
     return {
@@ -201,9 +262,9 @@
     return out;
   }
 
-  // -----------------------
+  // ============================
   // Carousel engine
-  // -----------------------
+  // ============================
   const carouselTimers = new Map();
 
   function stopCarouselFor(imgEl) {
@@ -225,6 +286,7 @@
       imgEl.classList.add("fadeIn");
     };
 
+    // Skip broken images so carousel doesn't get stuck
     imgEl.onerror = () => {
       if (photos.length <= 1) return;
       idx = (idx + 1) % photos.length;
@@ -233,6 +295,7 @@
 
     setSrc();
 
+    // If only one photo, do not rotate
     if (photos.length === 1) return;
 
     const tickMs = 2600;
@@ -243,23 +306,26 @@
 
     carouselTimers.set(imgEl, timer);
 
+    // Tap to advance
     imgEl.addEventListener("click", () => {
       idx = (idx + 1) % photos.length;
       setSrc();
-    }, { once: false });
+    });
   }
 
-  // -----------------------
+  // ============================
   // Firestore loading
-  // -----------------------
+  // ============================
   async function ensureMemberDoc(user) {
-    // Ensures the signed-in user has a members/{uid} doc with role admin (for your single-admin MVP).
-    // If it already exists, do nothing.
-    const ref = db.collection("families").doc(state.familyId).collection("members").doc(user.uid);
+    const ref = db
+      .collection("families")
+      .doc(state.familyId)
+      .collection("members")
+      .doc(user.uid);
+
     const snap = await ref.get();
     if (snap.exists) return snap.data();
 
-    // Create it as admin for the first user (you)
     const email = user.email || "";
     await ref.set({
       role: "admin",
@@ -271,110 +337,63 @@
     const snap2 = await ref.get();
     return snap2.exists ? snap2.data() : null;
   }
-  // -----------------------
-// Storage photo URL resolving
-// -----------------------
-const photoUrlCache = new Map(); // key: storagePath, value: downloadUrl
 
-function normalizePhotoPaths(r) {
-  const arr = Array.isArray(r?.photos) ? r.photos : [];
-  const single = (typeof r?.photo === "string" && r.photo.trim()) ? [r.photo.trim()] : [];
+  function dedupePeopleByNameBirth(arr) {
+    const seen = new Map();
 
-  return [...arr, ...single]
-    .map(x => (x == null ? "" : String(x).trim()))
-    .filter(Boolean);
-}
+    for (const p of arr) {
+      const nameKey = normalize(p.name);
+      const b = p.birthdate == null ? "" : String(p.birthdate).trim();
+      const key = `${nameKey}|${b}`;
 
-async function getDownloadUrlForPath(storagePath) {
-  if (!storagePath) return null;
-
-  // If it's already a URL, return as-is
-  if (/^https?:\/\//i.test(storagePath)) return storagePath;
-
-  if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
-
-  const url = await storage.ref(storagePath).getDownloadURL();
-  photoUrlCache.set(storagePath, url);
-  return url;
-}
-
-async function hydratePeoplePhotoUrls(peopleArray) {
-  if (!Array.isArray(peopleArray) || !peopleArray.length) return peopleArray;
-
-  for (const p of peopleArray) {
-    const paths = normalizePhotoPaths(p);
-
-    if (!paths.length) {
-      p._photoUrls = [];
-      continue;
-    }
-
-    const urls = [];
-    for (const path of paths) {
-      try {
-        const u = await getDownloadUrlForPath(path);
-        if (u) urls.push(u);
-      } catch (e) {
-        console.warn("Could not load photo URL for:", path, e);
+      if (!seen.has(key)) {
+        seen.set(key, p);
+      } else {
+        const kept = seen.get(key);
+        console.warn("Duplicate person merged:", {
+          keptId: kept?.id,
+          dupId: p?.id,
+          name: p?.name,
+          birthdate: p?.birthdate
+        });
       }
     }
-    p._photoUrls = urls;
-  }
 
-  return peopleArray;
-}
+    return Array.from(seen.values());
+  }
 
   async function loadPeopleOnce() {
-  if (!state.user) return;
-  if (!state.familyId || state.familyId.includes("PASTE_")) {
-    throw new Error("FAMILY_ID is not set in app.js");
-  }
+    if (!state.user) return;
 
-  // Ensure membership exists (and admin role for initial admin user)
-  await ensureMemberDoc(state.user);
-
-  const peopleRef = db.collection("families").doc(state.familyId).collection("people");
-  const snap = await peopleRef.get();
-
-  // Build array from Firestore
-  const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  await hydratePeoplePhotoUrls(arr);
-  state.data = arr;
-
-
-  // Dedupe by (normalized name + birthdate)
-  const seen = new Map();
-  for (const p of raw) {
-    const nameKey = normalize(p.name);
-    const b = p.birthdate == null ? "" : String(p.birthdate).trim();
-    const key = `${nameKey}|${b}`;
-
-    if (!seen.has(key)) {
-      seen.set(key, p);
-    } else {
-      // Keep the first one, but log the duplicate doc id so you can delete it later
-      const kept = seen.get(key);
-      console.warn("Duplicate person merged:", {
-        keptId: kept?.id,
-        dupId: p?.id,
-        name: p?.name,
-        birthdate: p?.birthdate
-      });
+    if (!state.familyId || state.familyId.includes("PASTE_")) {
+      throw new Error("FAMILY_ID is not set in app.js");
     }
+
+    await ensureMemberDoc(state.user);
+
+    const peopleRef = db.collection("families").doc(state.familyId).collection("people");
+    const snap = await peopleRef.get();
+
+    let arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Resolve photo download URLs
+    await hydratePeoplePhotoUrls(arr);
+
+    // Deduplicate
+    arr = dedupePeopleByNameBirth(arr);
+
+    state.data = arr;
   }
 
-  state.data = Array.from(seen.values());
-}
-
-  // -----------------------
+  // ============================
   // Render
-  // -----------------------
+  // ============================
   function render() {
     const cards = $("cards");
     const empty = $("empty");
     const asOf = $("asOf");
     const count = $("count");
-    const birthdayLine = $("birthdayLine"); // optional element in index.html
+    const birthdayLine = $("birthdayLine");
 
     if (!cards || !empty || !asOf || !count) {
       console.error("Missing required DOM elements (cards, empty, asOf, count).");
@@ -391,6 +410,7 @@ async function hydratePeoplePhotoUrls(peopleArray) {
     asOf.textContent = `As of: ${today.toLocaleDateString(undefined, {
       weekday: "short", year: "numeric", month: "short", day: "numeric"
     })}`;
+
     count.textContent = `Shown: ${filtered.length} / ${computed.length}`;
 
     // Upcoming birthdays (next 30 days) - living only
@@ -505,11 +525,12 @@ async function hydratePeoplePhotoUrls(peopleArray) {
     }
   }
 
-  // -----------------------
+  // ============================
   // Login UI + auth state
-  // -----------------------
+  // ============================
   async function completeEmailLinkSignin() {
     const href = window.location.href;
+
     if (!auth || !auth.isSignInWithEmailLink || !auth.isSignInWithEmailLink(href)) return;
 
     const storedEmail = window.localStorage.getItem("emailForSignIn");
@@ -527,15 +548,26 @@ async function hydratePeoplePhotoUrls(peopleArray) {
   }
 
   function setUIAuthed(isAuthed, emailText) {
+    // index.html may not have loginBox/appBox wrappers; this is safe either way
     const loginBox = $("loginBox");
     const appBox = $("appBox");
     const whoami = $("whoami");
     const logoutBtn = $("logoutBtn");
+    const loginForm = $("loginForm");
 
     if (loginBox) loginBox.style.display = isAuthed ? "none" : "";
     if (appBox) appBox.style.display = isAuthed ? "" : "none";
-    if (whoami) whoami.textContent = emailText || "";
-    if (logoutBtn) logoutBtn.style.display = isAuthed ? "" : "none";
+
+    // If wrappers do not exist, hide/show the login form directly
+    if (!loginBox && loginForm) loginForm.style.display = isAuthed ? "none" : "";
+
+    if (whoami) whoami.textContent = isAuthed ? (emailText || "Signed in") : "Not signed in";
+
+    // Your index.html uses hidden attribute initially; use hidden when available
+    if (logoutBtn) {
+      if ("hidden" in logoutBtn) logoutBtn.hidden = !isAuthed;
+      else logoutBtn.style.display = isAuthed ? "" : "none";
+    }
   }
 
   function wireLoginUI() {
@@ -547,11 +579,13 @@ async function hydratePeoplePhotoUrls(peopleArray) {
     if (form && emailEl && sendBtn) {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
+
         const email = (emailEl.value || "").trim();
         if (!email) return;
 
         sendBtn.disabled = true;
         sendBtn.textContent = "Sending…";
+
         try {
           await auth.sendSignInLinkToEmail(email, actionCodeSettings);
           window.localStorage.setItem("emailForSignIn", email);
@@ -583,22 +617,35 @@ async function hydratePeoplePhotoUrls(peopleArray) {
     const sortBtn = $("sortBtn");
 
     if (searchEl) {
-      searchEl.addEventListener("input", (e) => { state.q = e.target.value; render(); });
+      searchEl.addEventListener("input", (e) => {
+        state.q = e.target.value;
+        render();
+      });
     }
+
     if (showDeceasedEl) {
-      showDeceasedEl.addEventListener("change", (e) => { state.showDeceased = e.target.checked; render(); });
+      showDeceasedEl.addEventListener("change", (e) => {
+        state.showDeceased = e.target.checked;
+        render();
+      });
     }
+
     if (sortBtn) {
       sortBtn.addEventListener("click", () => {
         state.sortOldestFirst = !state.sortOldestFirst;
-        sortBtn.textContent = state.sortOldestFirst ? "Sort: Oldest → Youngest" : "Sort: Youngest → Oldest";
+        sortBtn.textContent = state.sortOldestFirst
+          ? "Sort: Oldest → Youngest"
+          : "Sort: Youngest → Oldest";
         render();
       });
     }
   }
 
+  // ============================
+  // Bootstrap
+  // ============================
   async function bootstrap() {
-    if (!auth || !db) return;
+    if (!auth || !db || !storage) return;
 
     wireLoginUI();
     hookUI();
