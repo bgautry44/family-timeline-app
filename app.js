@@ -192,7 +192,9 @@
           const u = await getDownloadUrlForPath(path);
           if (u) urls.push(u);
         } catch (e) {
+          alert("Photo load failed for: " + path + "\n\n" + (e?.code || "") + "\n" + (e?.message || e));
           console.warn("Could not load photo URL for:", path, e);
+
         }
       }
       p._photoUrls = urls;
