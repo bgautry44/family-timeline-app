@@ -1,2 +1,18 @@
-[]
+[
+  {
+    "name": "Mary Ann Hicks",
+    "birthdate": "1946-04-22",
+    "passed": null,
+    "photos": [],
+    "tribute": ""
+  },
+  {
+    "name": "Barry Gene Autry",
+    "birthdate": "1960-02-14",
+    "passed": null,
+    "photos": [],
+    "tribute": ""
+  }
+]
+
 
