@@ -114,6 +114,61 @@ h1{
   min-width:0;
 }
 
+/* --- Card header layout (fix for larger avatars like 72px) --- */
+.cardTop{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;   /* key change: no vertical centering */
+  margin:0 0 10px;
+}
+
+.avatarWrap{
+  position:relative;
+  width:72px;
+  height:72px;
+  flex:0 0 72px;
+}
+
+.avatar{
+  width:72px;
+  height:72px;
+  border-radius:999px;
+  object-fit:cover;
+  display:block;
+  border:1px solid rgba(255,255,255,0.14);
+  background:#0e1422;
+}
+
+/* if you have placeholders */
+.avatar.placeholder{
+  width:72px;
+  height:72px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  font-size:12px;
+  border:1px solid rgba(255,255,255,0.14);
+  background:#0e1422;
+}
+
+.cardTopText{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;             /* key change: controlled stacking */
+  flex-direction:column;
+  gap:6px;
+}
+
+.cardTopText .name{
+  margin:0;                 /* key change: stop margins fighting layout */
+  line-height:1.15;
+}
+
+.cardTopText .badge{
+  margin-top:0;             /* keep badge tight under name */
+}
 
 .cards{
   display:grid;
