@@ -264,22 +264,44 @@
     const snap2 = await ref.get();
     return snap2.exists ? snap2.data() : null;
   }
-
   async function loadPeopleOnce() {
-    if (!state.user) return;
-    if (!state.familyId || state.familyId.includes("PASTE_")) {
-      throw new Error("FAMILY_ID is not set in app.js");
-    }
-
-    // Ensure membership exists (and admin role for initial admin user)
-    await ensureMemberDoc(state.user);
-
-    const peopleRef = db.collection("families").doc(state.familyId).collection("people");
-    const snap = await peopleRef.get();
-
-    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    state.data = arr;
+  if (!state.user) return;
+  if (!state.familyId || state.familyId.includes("PASTE_")) {
+    throw new Error("FAMILY_ID is not set in app.js");
   }
+
+  // Ensure membership exists (and admin role for initial admin user)
+  await ensureMemberDoc(state.user);
+
+  const peopleRef = db.collection("families").doc(state.familyId).collection("people");
+  const snap = await peopleRef.get();
+
+  // Build array from Firestore
+  const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Dedupe by (normalized name + birthdate)
+  const seen = new Map();
+  for (const p of raw) {
+    const nameKey = normalize(p.name);
+    const b = p.birthdate == null ? "" : String(p.birthdate).trim();
+    const key = `${nameKey}|${b}`;
+
+    if (!seen.has(key)) {
+      seen.set(key, p);
+    } else {
+      // Keep the first one, but log the duplicate doc id so you can delete it later
+      const kept = seen.get(key);
+      console.warn("Duplicate person merged:", {
+        keptId: kept?.id,
+        dupId: p?.id,
+        name: p?.name,
+        birthdate: p?.birthdate
+      });
+    }
+  }
+
+  state.data = Array.from(seen.values());
+}
 
   // -----------------------
   // Render
