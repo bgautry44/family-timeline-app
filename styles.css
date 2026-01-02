@@ -80,14 +80,14 @@ h1{
 
 .avatarWrap{
   position:relative;
-  width:56px;
-  height:56px;
+  width:72px;
+  height:72px;
   flex:0 0 auto;
 }
 
 .avatar{
-  width:56px;
-  height:56px;
+  width:72px;
+  height:72px;
   border-radius:999px;
   object-fit:cover;
   display:block;
@@ -97,8 +97,8 @@ h1{
 
 /* If no photo */
 .avatar.placeholder{
-  width:56px;
-  height:56px;
+  width:72px;
+  height:72px;
   border-radius:999px;
   display:flex;
   align-items:center;
