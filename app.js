@@ -394,146 +394,234 @@
     state.data = arr;
   }
 
+
   // ============================
-  // Render
-  // ============================
-  function render() {
-    const cards = $("cards");
-    const empty = $("empty");
-    const asOf = $("asOf");
-    const count = $("count");
-    const birthdayLine = $("birthdayLine");
+// Render (Template-based cards)
+// ============================
+function render() {
+  const cards = $("cards");
+  const empty = $("empty");
+  const asOf = $("asOf");
+  const count = $("count");
+  const birthdayLine = $("birthdayLine");
+  const tpl = document.getElementById("personCardTemplate");
 
-    if (!cards || !empty || !asOf || !count) {
-      console.error("Missing required DOM elements (cards, empty, asOf, count).");
-      return;
+  if (!cards || !empty || !asOf || !count) {
+    console.error("Missing required DOM elements (cards, empty, asOf, count).");
+    return;
+  }
+  if (!tpl) {
+    console.error("Missing #personCardTemplate in index.html.");
+    return;
+  }
+
+  // Stop all existing carousels before rebuild
+  for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
+
+  const computed = (state.data || []).map(computeRow);
+  const filtered = filterSort(computed);
+  const today = todayLocal();
+
+  asOf.textContent = `As of: ${today.toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })}`;
+
+  count.textContent = `Shown: ${filtered.length} / ${computed.length}`;
+
+  // Upcoming birthdays (next 30 days) - living only
+  if (birthdayLine) {
+    const soon = computed
+      .filter((r) => r.status === "alive" && r._birth && r.nextBirthday)
+      .map((r) => ({ name: r.name, date: r.nextBirthday }))
+      .filter((x) => {
+        const diffDays = Math.ceil((x.date - today) / 86400000);
+        return diffDays >= 0 && diffDays <= 30;
+      })
+      .sort((a, b) => a.date - b.date);
+
+    if (soon.length) {
+      birthdayLine.innerHTML =
+        `<strong>Upcoming birthdays (next 30 days):</strong> ` +
+        soon
+          .map(
+            (x) =>
+              `<span>${escapeHtml(x.name)} (${x.date.toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })})</span>`
+          )
+          .join(" • ");
+      birthdayLine.hidden = false;
+    } else {
+      birthdayLine.hidden = true;
+    }
+  }
+
+  // Clear cards
+  cards.innerHTML = "";
+
+  if (filtered.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  const frag = document.createDocumentFragment();
+
+  for (const r of filtered) {
+    const isMemorial = r.status === "deceased";
+    const isBirthday = !!r.isBirthdayToday;
+
+    // Badge logic (kept consistent with your current behavior)
+    let badgeText = isMemorial ? "In Memoriam" : "Living";
+    let badgeModifier = isMemorial ? "status-badge--deceased" : "status-badge--living";
+
+    if (isBirthday) {
+      badgeText = "Birthday Today";
+      badgeModifier = "status-badge--birthday";
     }
 
-    // stop all existing carousels before rebuild
-    for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
-
-    const computed = (state.data || []).map(computeRow);
-    const filtered = filterSort(computed);
-    const today = todayLocal();
-
-    asOf.textContent = `As of: ${today.toLocaleDateString(undefined, {
-      weekday: "short", year: "numeric", month: "short", day: "numeric"
-    })}`;
-
-    count.textContent = `Shown: ${filtered.length} / ${computed.length}`;
-
-    // Upcoming birthdays (next 30 days) - living only
-    if (birthdayLine) {
-      const soon = computed
-        .filter(r => r.status === "alive" && r._birth && r.nextBirthday)
-        .map(r => ({ name: r.name, date: r.nextBirthday }))
-        .filter(x => {
-          const diffDays = Math.ceil((x.date - today) / 86400000);
-          return diffDays >= 0 && diffDays <= 30;
-        })
-        .sort((a, b) => a.date - b.date);
-
-      if (soon.length) {
-        birthdayLine.innerHTML =
-          `📅 <strong>Upcoming birthdays (next 30 days):</strong> ` +
-          soon.map(x =>
-            `<span>${escapeHtml(x.name)} (${x.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })})</span>`
-          ).join(" • ");
-        birthdayLine.hidden = false;
-      } else {
-        birthdayLine.hidden = true;
-      }
-    }
-
-    cards.innerHTML = "";
-    if (filtered.length === 0) {
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-
-    for (const r of filtered) {
-      const isMemorial = r.status === "deceased";
-      const isBirthday = !!r.isBirthdayToday;
-
-      let badgeClass = isMemorial ? "badge deceased" : "badge alive";
-      let badgeText = isMemorial ? "In Memoriam" : "Living";
-
-      if (isBirthday) {
-        badgeClass = "badge birthday";
-        badgeText = "🎂 Birthday Today";
-      }
-
-      const years = (r._birth || r._passed)
+    const years =
+      r._birth || r._passed
         ? `${r._birth ? r._birth.getFullYear() : "—"} – ${r._passed ? r._passed.getFullYear() : "—"}`
         : "";
 
-      const photos = r._photos;
+    const photos = Array.isArray(r._photos) ? r._photos : [];
 
-      const card = document.createElement("section");
-      card.className =
-        "card" +
-        (isMemorial ? " memorial" : "") +
-        (isBirthday ? " birthdayToday" : "");
+    // Clone template
+    const node = tpl.content.firstElementChild.cloneNode(true);
 
-      const avatarHtml = photos.length
-        ? `
-          <div class="cardTop">
-          <div class="avatarWrap">
-            <img class="avatar" alt="${escapeHtml(r.name || "Photo")}" loading="lazy" />
-            ${
-              photos.length > 1
-                ? `<div class="avatarDot" title="Multiple photos">↻</div>`
-                : (isMemorial ? `<div class="avatarDot" title="In Memoriam">✦</div>` : ``)
-            }
-          </div>
-        `
-        : `
-          <div class="avatarWrap">
-            <div class="avatar placeholder" aria-hidden="true">No photo</div>
-            ${isMemorial ? `<div class="avatarDot" title="In Memoriam">✦</div>` : ``}
-          </div>
-        `;
+    // Apply card-level state classes (optional but useful for styling)
+    node.classList.toggle("is-memorial", isMemorial);
+    node.classList.toggle("is-birthday", isBirthday);
 
-      const memorialLine = isMemorial
-        ? `
-          <div class="memorialMark">In loving memory</div>
-          ${years ? `<div class="memorialYears">${escapeHtml(years)}</div>` : ``}
-        `
-        : ``;
+    // --- Avatar ---
+    const avatarWrap = node.querySelector(".person-card__avatar");
+    const avatarImg = node.querySelector(".person-card__avatar-img");
 
-      const tributeBlock = (isMemorial && r.tribute && r.tribute.trim())
-        ? `<div class="tribute">“${escapeHtml(r.tribute.trim())}”</div>`
-        : "";
+    if (photos.length) {
+      avatarImg.alt = `Photo of ${r.name || "Family member"}`;
+      avatarImg.src = ""; // startCarousel will set src
+      avatarImg.classList.remove("is-placeholder");
 
-      const wouldHaveTurnedBlock =
-        (isMemorial && r.wouldHaveTurned != null)
-          ? `<div class="wouldHaveTurned">Remembering <strong>${escapeHtml(r.name)}</strong> today — would have turned <strong>${r.wouldHaveTurned}</strong>.</div>`
-          : "";
+      // Optional indicator dot (multiple photos or memorial mark)
+      const dot = document.createElement("div");
+      dot.className = "avatarDot";
+      if (photos.length > 1) {
+        dot.title = "Multiple photos";
+        dot.textContent = "↻";
+      } else if (isMemorial) {
+        dot.title = "In Memoriam";
+        dot.textContent = "✦";
+      } else {
+        // single photo, living: no dot
+        dot.remove();
+      }
+      if (dot.parentNode !== null || dot.textContent) avatarWrap.appendChild(dot);
+    } else {
+      // No photos: replace <img> with placeholder block
+      avatarImg.remove();
 
-      card.innerHTML = `
-        <div class="cardTop">
-          ${avatarHtml}
-          <div class="cardTopText">
-            <h2 class="name">${escapeHtml(r.name || "Unnamed")}</h2>
-            <div class="${badgeClass}">${badgeText}</div>
-            ${memorialLine}
-          </div>
-        </div>
+      const placeholder = document.createElement("div");
+      placeholder.className = "avatar placeholder";
+      placeholder.setAttribute("aria-hidden", "true");
+      placeholder.textContent = "No photo";
+      avatarWrap.appendChild(placeholder);
 
-        <div class="row"><span>Birthdate</span><span class="value">${fmtDate(r._birth)}</span></div>
-        <div class="row"><span>${isMemorial ? "Age at passing" : "Current age"}</span><span class="value">${escapeHtml(r.ageText)}</span></div>
-        <div class="row"><span>Passed</span><span class="value">${fmtDate(r._passed)}</span></div>
-        ${tributeBlock}
-        ${wouldHaveTurnedBlock}
-      `;
-
-      cards.appendChild(card);
-
-      const imgEl = card.querySelector("img.avatar");
-      if (imgEl && photos.length) startCarousel(imgEl, photos);
+      if (isMemorial) {
+        const dot = document.createElement("div");
+        dot.className = "avatarDot";
+        dot.title = "In Memoriam";
+        dot.textContent = "✦";
+        avatarWrap.appendChild(dot);
+      }
     }
+
+    // --- Header: name + badge under it ---
+    const nameEl = node.querySelector(".person-card__name");
+    const statusBadge = node.querySelector(".status-badge");
+
+    const displayName = r.name || "Unnamed";
+    nameEl.textContent = displayName;
+    nameEl.title = displayName;
+
+    statusBadge.textContent = isBirthday ? "🎂 Birthday Today" : badgeText;
+    statusBadge.classList.add(badgeModifier);
+
+    // --- Rows ---
+    const birthVal = node.querySelector('[data-field="birthdate"]');
+    const ageVal = node.querySelector('[data-field="age"]');
+    const passedVal = node.querySelector('[data-field="passed"]');
+
+    if (birthVal) birthVal.textContent = fmtDate(r._birth);
+
+    if (ageVal) {
+      // Show label as "Current age" or "Age at passing"
+      const ageRow = ageVal.closest(".row");
+      const ageLabel = ageRow ? ageRow.querySelector(".row__label") : null;
+      if (ageLabel) ageLabel.textContent = isMemorial ? "Age at passing" : "Current age";
+      ageVal.textContent = r.ageText ? String(r.ageText) : "—";
+    }
+
+    if (passedVal) passedVal.textContent = fmtDate(r._passed);
+
+    // --- Memorial lines (years + "In loving memory") ---
+    // Insert these under badge, inside header, but after badge area for consistent layout
+    if (isMemorial) {
+      const header = node.querySelector(".person-card__header");
+
+      const memorialMark = document.createElement("div");
+      memorialMark.className = "memorialMark";
+      memorialMark.textContent = "In loving memory";
+
+      header.appendChild(memorialMark);
+
+      if (years) {
+        const memorialYears = document.createElement("div");
+        memorialYears.className = "memorialYears";
+        memorialYears.textContent = years;
+        header.appendChild(memorialYears);
+      }
+    }
+
+    // --- Tribute block (memorial only) ---
+    if (isMemorial && r.tribute && String(r.tribute).trim()) {
+      const tribute = document.createElement("div");
+      tribute.className = "tribute";
+      tribute.textContent = `“${String(r.tribute).trim()}”`;
+      node.querySelector(".person-card__main").appendChild(tribute);
+    }
+
+    // --- Would-have-turned block (memorial only) ---
+    if (isMemorial && r.wouldHaveTurned != null) {
+      const wht = document.createElement("div");
+      wht.className = "wouldHaveTurned";
+      // Use text nodes for safety (no HTML injection)
+      wht.appendChild(document.createTextNode("Remembering "));
+      const strongName = document.createElement("strong");
+      strongName.textContent = displayName;
+      wht.appendChild(strongName);
+      wht.appendChild(document.createTextNode(" today — would have turned "));
+      const strongAge = document.createElement("strong");
+      strongAge.textContent = String(r.wouldHaveTurned);
+      wht.appendChild(strongAge);
+      wht.appendChild(document.createTextNode("."));
+      node.querySelector(".person-card__main").appendChild(wht);
+    }
+
+    // Append card to fragment
+    frag.appendChild(node);
+
+    // Start carousel after card is in DOM fragment (img element exists)
+    const imgEl = node.querySelector("img.person-card__avatar-img");
+    if (imgEl && photos.length) startCarousel(imgEl, photos);
   }
+
+  cards.appendChild(frag);
+}
 
   // ============================
   // Login UI + auth state
