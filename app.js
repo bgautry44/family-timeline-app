@@ -2,23 +2,16 @@
   const $ = (id) => document.getElementById(id);
 
   // ============================
-  // CONFIG (SET THIS)
+  // CONFIG
   // ============================
   const FAMILY_ID = "e538i47rIjVIS7xGdCtC";
 
   // ============================
   // Firebase (compat)
-  // Requires global: firebase + compat SDK scripts + firebase.initializeApp() in firebase.js
   // ============================
-  const auth = window.auth ? window.auth : (window.firebase ? window.firebase.auth() : null);
-  const db = window.db ? window.db : (window.firebase ? window.firebase.firestore() : null);
-  const storage = window.storage ? window.storage : (window.firebase ? window.firebase.storage() : null);
-
-  if (!auth || !db || !storage) {
-    console.error(
-      "Firebase auth/db/storage not found. Ensure compat scripts are loaded and firebase.initializeApp() has run (firebase.js)."
-    );
-  }
+  const auth = window.auth ?? firebase.auth();
+  const db = window.db ?? firebase.firestore();
+  const storage = window.storage ?? firebase.storage();
 
   // Email link sign-in settings
   const actionCodeSettings = {
@@ -31,748 +24,166 @@
   // ============================
   const state = {
     data: [],
+    user: null,
+    q: "",
     showDeceased: true,
     sortOldestFirst: true,
-    q: "",
-    user: null,
     familyId: FAMILY_ID
   };
 
   // ============================
-  // Helpers
+  // Date helpers
   // ============================
-  function normalize(s) {
-    return (s || "").toString().toLowerCase().trim();
-  }
+  const todayLocal = () => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  };
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (s) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    }[s]));
-  }
-
-  function localDateFromYMD(y, m, d) {
-    const dt = new Date(Number(y), Number(m) - 1, Number(d));
-    return isNaN(dt.getTime()) ? null : dt;
-  }
-
-  // Parse as LOCAL date to avoid 1-day shifts, supports Firestore Timestamp
-  function parseISODate(v) {
-    if (v == null || v === "") return null;
-
-    // Date object
-    if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
-      return new Date(v.getFullYear(), v.getMonth(), v.getDate());
-    }
-
-    // Firestore Timestamp
-    if (v && typeof v.toDate === "function") {
+  const parseDate = (v) => {
+    if (!v) return null;
+    if (v.toDate) {
       const d = v.toDate();
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    const d = new Date(v);
+    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  };
 
-    // ISO YYYY-MM-DD
-    if (typeof v === "string") {
-      const s = v.trim();
-      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) return localDateFromYMD(m[1], m[2], m[3]);
+  const fmtDate = (d) =>
+    d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
-      // fallback
-      const d = new Date(s);
-      if (!isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      return null;
-    }
-
-    return null;
-  }
-
-  function todayLocal() {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-
-  function sameMonthDay(a, b) {
-    return a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  }
-
-  function nextBirthdayDate(birth, today) {
-    if (!birth) return null;
-    const d = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
-    return (d < today) ? new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate()) : d;
-  }
-
-  // Calendar-accurate Y/M/D difference
-  function diffYMD(from, to) {
+  const diffYMD = (from, to) => {
     let y = to.getFullYear() - from.getFullYear();
     let m = to.getMonth() - from.getMonth();
     let d = to.getDate() - from.getDate();
-
     if (d < 0) {
-      m -= 1;
-      const daysInPrevMonth = new Date(to.getFullYear(), to.getMonth(), 0).getDate();
-      d += daysInPrevMonth;
+      m--;
+      d += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
     }
     if (m < 0) {
-      y -= 1;
+      y--;
       m += 12;
     }
-    return { y, m, d };
-  }
-
-  function fmtYMD(o) {
-    if (!o) return "—";
-    return [
-      `${o.y} year${o.y === 1 ? "" : "s"}`,
-      `${o.m} month${o.m === 1 ? "" : "s"}`,
-      `${o.d} day${o.d === 1 ? "" : "s"}`
-    ].join(", ");
-  }
-
-  function fmtDate(d) {
-    if (!d) return "—";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  }
+    return `${y} year${y !== 1 ? "s" : ""}, ${m} month${m !== 1 ? "s" : ""}, ${d} day${d !== 1 ? "s" : ""}`;
+  };
 
   // ============================
-  // Storage photo URL resolving
+  // Photos
   // ============================
-  const photoUrlCache = new Map(); // key: storagePath, value: downloadUrl
+  async function resolvePhotos(person) {
+    const paths = Array.isArray(person.photos)
+      ? person.photos
+      : person.photos ? [person.photos] : [];
 
-  function normalizePhotoPaths(r) {
-    const list = [];
-
-    // photos can be array OR string; photo can be string
-    if (Array.isArray(r?.photos)) list.push(...r.photos);
-    else if (typeof r?.photos === "string" && r.photos.trim()) list.push(r.photos.trim());
-
-    if (typeof r?.photo === "string" && r.photo.trim()) list.push(r.photo.trim());
-
-    return list
-      .map(x => (x == null ? "" : String(x).trim()))
-      .filter(Boolean);
-  }
-
-  async function getDownloadUrlForPath(storagePath) {
-    if (!storagePath) return null;
-
-    // If already a URL, use as-is
-    if (/^https?:\/\//i.test(storagePath)) return storagePath;
-
-    if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
-
-    let url = null;
-    try {
-    url = await storage.ref(storagePath).getDownloadURL();
-  } catch (e) {
-    console.error("getDownloadURL failed for:", storagePath, e?.code, e?.message);
-    throw e;
-  }
-
-    photoUrlCache.set(storagePath, url);
-    return url;
-  }
-
-  async function hydratePeoplePhotoUrls(peopleArray) {
-    if (!Array.isArray(peopleArray) || !peopleArray.length) return peopleArray;
-
-    for (const p of peopleArray) {
-      const paths = normalizePhotoPaths(p);
-      if (!paths.length) {
-        p._photoUrls = [];
-        continue;
-      }
-
-      const urls = [];
-      for (const path of paths) {
+    const urls = [];
+    for (const p of paths) {
+      if (/^https?:\/\//i.test(p)) {
+        urls.push(p);
+      } else {
         try {
-          const u = await getDownloadUrlForPath(path);
-          if (u) urls.push(u);
+          urls.push(await storage.ref(p).getDownloadURL());
         } catch (e) {
-          alert("Photo load failed for: " + path + "\n\n" + (e?.code || "") + "\n" + (e?.message || e));
-          console.warn("Could not load photo URL for:", path, e);
-
+          console.warn("Photo load failed:", p);
         }
       }
-      p._photoUrls = urls;
     }
-    return peopleArray;
-  }
-
-  // Photos used by carousel: prefer resolved _photoUrls
-  function photoList(r) {
-    if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
-
-    const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
-    if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
-
-    const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
-    return single ? [single] : [];
+    person._photos = urls;
   }
 
   // ============================
-  // Data computation
+  // Compute derived fields
   // ============================
-  function computeRow(r) {
-    const birth = parseISODate(r.birthdate);
-    const passed = parseISODate(r.passed);
-
+  function compute(person) {
+    const birth = parseDate(person.birthdate);
+    const passed = parseDate(person.passed);
     const today = todayLocal();
-    const passedEffective = (passed && passed.getTime() <= today.getTime()) ? passed : null;
-
-    const ref = passedEffective ?? today;
-    const ageObj = birth ? diffYMD(birth, ref) : null;
-
-    // Living only: Birthday Today
-    const isBirthdayToday = !!(birth && !passedEffective && sameMonthDay(birth, today));
-
-    // Deceased only: would have turned X on birthday
-    const wouldHaveTurned = (birth && passedEffective && sameMonthDay(birth, today))
-      ? (today.getFullYear() - birth.getFullYear())
-      : null;
-
-    // For upcoming birthdays line (filtered to living in render)
-    const nextBirthday = birth ? nextBirthdayDate(birth, today) : null;
+    const deceased = passed && passed <= today;
 
     return {
-      ...r,
-      name: (r?.name ?? "").toString(),
-      tribute: (r?.tribute ?? "").toString(),
+      ...person,
       _birth: birth,
-      _passed: passedEffective,
-      ageText: birth ? fmtYMD(ageObj) : "—",
-      status: passedEffective ? "deceased" : "alive",
-      _photos: photoList(r),
-      isBirthdayToday,
-      nextBirthday,
-      wouldHaveTurned
+      _passed: deceased ? passed : null,
+      status: deceased ? "deceased" : "alive",
+      ageText: birth ? diffYMD(birth, deceased ? passed : today) : "—",
     };
   }
 
-  function filterSort(rows) {
-    let out = Array.isArray(rows) ? rows : [];
-
-    if (!state.showDeceased) out = out.filter(r => r.status !== "deceased");
-
-    const q = normalize(state.q);
-    if (q) out = out.filter(r => normalize(r.name).includes(q));
-
-    // Sort by DOB only (birth order)
-    out = out.slice().sort((a, b) => {
-      const aT = a._birth ? a._birth.getTime() : Number.POSITIVE_INFINITY;
-      const bT = b._birth ? b._birth.getTime() : Number.POSITIVE_INFINITY;
-      if (aT !== bT) return state.sortOldestFirst ? (aT - bT) : (bT - aT);
-      return (a.name ?? "").localeCompare(b.name ?? "");
-    });
-
-    return out;
-  }
-
   // ============================
-  // Carousel engine
+  // Load Firestore
   // ============================
-  const carouselTimers = new Map();
-
-  function stopCarouselFor(imgEl) {
-    const t = carouselTimers.get(imgEl);
-    if (t) clearInterval(t);
-    carouselTimers.delete(imgEl);
-  }
-
-  function startCarousel(imgEl, photos) {
-    stopCarouselFor(imgEl);
-    if (!imgEl || !Array.isArray(photos) || photos.length === 0) return;
-
-    let idx = 0;
-
-    const setSrc = () => {
-      imgEl.classList.remove("fadeIn");
-      void imgEl.offsetWidth; // restart animation
-      imgEl.src = photos[idx];
-      imgEl.classList.add("fadeIn");
-    };
-
-    // Skip broken images so carousel doesn't get stuck
-    imgEl.onerror = () => {
-      if (photos.length <= 1) return;
-      idx = (idx + 1) % photos.length;
-      setSrc();
-    };
-
-    setSrc();
-
-    // If only one photo, do not rotate
-    if (photos.length === 1) return;
-
-    const tickMs = 2600;
-    const timer = setInterval(() => {
-      idx = (idx + 1) % photos.length;
-      setSrc();
-    }, tickMs);
-
-    carouselTimers.set(imgEl, timer);
-
-    // Tap to advance
-    imgEl.addEventListener("click", () => {
-      idx = (idx + 1) % photos.length;
-      setSrc();
-    });
-  }
-
-  // ============================
-  // Firestore loading
-  // ============================
-  async function ensureMemberDoc(user) {
-    const ref = db
+  async function loadPeople() {
+    const snap = await db
       .collection("families")
       .doc(state.familyId)
-      .collection("members")
-      .doc(user.uid);
+      .collection("people")
+      .get();
 
-    const snap = await ref.get();
-    if (snap.exists) return snap.data();
-
-    const email = user.email || "";
-    await ref.set({
-      role: "admin",
-      email,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    const snap2 = await ref.get();
-    return snap2.exists ? snap2.data() : null;
+    const people = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    for (const p of people) await resolvePhotos(p);
+    state.data = people;
   }
 
-  function dedupePeopleByNameBirth(arr) {
-    const seen = new Map();
+  // ============================
+  // Render
+  // ============================
+  function render() {
+    const cards = $("cards");
+    const empty = $("empty");
+    cards.innerHTML = "";
 
-    for (const p of arr) {
-      const nameKey = normalize(p.name);
-      const b = p.birthdate == null ? "" : String(p.birthdate).trim();
-      const key = `${nameKey}|${b}`;
+    const rows = state.data.map(compute)
+      .filter(p => state.showDeceased || p.status !== "deceased")
+      .sort((a, b) =>
+        state.sortOldestFirst
+          ? (a._birth?.getTime() ?? 0) - (b._birth?.getTime() ?? 0)
+          : (b._birth?.getTime() ?? 0) - (a._birth?.getTime() ?? 0)
+      );
 
-      if (!seen.has(key)) {
-        seen.set(key, p);
+    if (!rows.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    for (const p of rows) {
+      const card = document.createElement("div");
+      card.className = `card ${p.status === "deceased" ? "memorial" : ""}`;
+
+      // ---- Header (THIS IS THE FIX) ----
+      const top = document.createElement("div");
+      top.className = "cardTop";
+
+      const avatarWrap = document.createElement("div");
+      avatarWrap.className = "avatarWrap";
+
+      if (p._photos?.length) {
+        const img = document.createElement("img");
+        img.className = "avatar";
+        img.src = p._photos[0];
+        img.alt = `Photo of ${p.name}`;
+        avatarWrap.appendChild(img);
       } else {
-        const kept = seen.get(key);
-        console.warn("Duplicate person merged:", {
-          keptId: kept?.id,
-          dupId: p?.id,
-          name: p?.name,
-          birthdate: p?.birthdate
-        });
-      }
-    }
-
-    return Array.from(seen.values());
-  }
-
-  async function loadPeopleOnce() {
-    if (!state.user) return;
-
-    if (!state.familyId || state.familyId.includes("PASTE_")) {
-      throw new Error("FAMILY_ID is not set in app.js");
-    }
-
-    await ensureMemberDoc(state.user);
-
-    const peopleRef = db.collection("families").doc(state.familyId).collection("people");
-    const snap = await peopleRef.get();
-
-    let arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    // Resolve photo download URLs
-    await hydratePeoplePhotoUrls(arr);
-
-    // Deduplicate
-    arr = dedupePeopleByNameBirth(arr);
-
-    state.data = arr;
-  }
-
-
-  // ============================
-// Render (Template-based cards)
-// ============================
-function render() {
-  const cards = $("cards");
-  const empty = $("empty");
-  const asOf = $("asOf");
-  const count = $("count");
-  const birthdayLine = $("birthdayLine");
-  const tpl = document.getElementById("personCardTemplate");
-
-  if (!cards || !empty || !asOf || !count) {
-    console.error("Missing required DOM elements (cards, empty, asOf, count).");
-    return;
-  }
-  if (!tpl) {
-    console.error("Missing #personCardTemplate in index.html.");
-    return;
-  }
-
-  // Stop all existing carousels before rebuild
-  for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
-
-  const computed = (state.data || []).map(computeRow);
-  const filtered = filterSort(computed);
-  const today = todayLocal();
-
-  asOf.textContent = `As of: ${today.toLocaleDateString(undefined, {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })}`;
-
-  count.textContent = `Shown: ${filtered.length} / ${computed.length}`;
-
-  // Upcoming birthdays (next 30 days) - living only
-  if (birthdayLine) {
-    const soon = computed
-      .filter((r) => r.status === "alive" && r._birth && r.nextBirthday)
-      .map((r) => ({ name: r.name, date: r.nextBirthday }))
-      .filter((x) => {
-        const diffDays = Math.ceil((x.date - today) / 86400000);
-        return diffDays >= 0 && diffDays <= 30;
-      })
-      .sort((a, b) => a.date - b.date);
-
-    if (soon.length) {
-      birthdayLine.innerHTML =
-        `<strong>Upcoming birthdays (next 30 days):</strong> ` +
-        soon
-          .map(
-            (x) =>
-              `<span>${escapeHtml(x.name)} (${x.date.toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })})</span>`
-          )
-          .join(" • ");
-      birthdayLine.hidden = false;
-    } else {
-      birthdayLine.hidden = true;
-    }
-  }
-
-  // Clear cards
-  cards.innerHTML = "";
-
-  if (filtered.length === 0) {
-    empty.hidden = false;
-    return;
-  }
-  empty.hidden = true;
-
-  const frag = document.createDocumentFragment();
-
-  for (const r of filtered) {
-    const isMemorial = r.status === "deceased";
-    const isBirthday = !!r.isBirthdayToday;
-
-    // Badge logic (kept consistent with your current behavior)
-    let badgeText = isMemorial ? "In Memoriam" : "Living";
-    let badgeModifier = isMemorial ? "status-badge--deceased" : "status-badge--living";
-
-    if (isBirthday) {
-      badgeText = "Birthday Today";
-      badgeModifier = "status-badge--birthday";
-    }
-
-    const years =
-      r._birth || r._passed
-        ? `${r._birth ? r._birth.getFullYear() : "—"} – ${r._passed ? r._passed.getFullYear() : "—"}`
-        : "";
-
-    const photos = Array.isArray(r._photos) ? r._photos : [];
-
-    // Clone template
-    const node = tpl.content.firstElementChild.cloneNode(true);
-
-    // Apply card-level state classes (optional but useful for styling)
-    node.classList.toggle("is-memorial", isMemorial);
-    node.classList.toggle("is-birthday", isBirthday);
-
-    // --- Avatar ---
-    const avatarWrap = node.querySelector(".person-card__avatar");
-    const avatarImg = node.querySelector(".person-card__avatar-img");
-
-    if (photos.length) {
-      avatarImg.alt = `Photo of ${r.name || "Family member"}`;
-      avatarImg.src = ""; // startCarousel will set src
-      avatarImg.classList.remove("is-placeholder");
-
-      // Optional indicator dot (multiple photos or memorial mark)
-      const dot = document.createElement("div");
-      dot.className = "avatarDot";
-      if (photos.length > 1) {
-        dot.title = "Multiple photos";
-        dot.textContent = "↻";
-      } else if (isMemorial) {
-        dot.title = "In Memoriam";
-        dot.textContent = "✦";
-      } else {
-        // single photo, living: no dot
-        dot.remove();
-      }
-      if (dot.parentNode !== null || dot.textContent) avatarWrap.appendChild(dot);
-    } else {
-      // No photos: replace <img> with placeholder block
-      avatarImg.remove();
-
-      const placeholder = document.createElement("div");
-      placeholder.className = "avatar placeholder";
-      placeholder.setAttribute("aria-hidden", "true");
-      placeholder.textContent = "No photo";
-      avatarWrap.appendChild(placeholder);
-
-      if (isMemorial) {
-        const dot = document.createElement("div");
-        dot.className = "avatarDot";
-        dot.title = "In Memoriam";
-        dot.textContent = "✦";
-        avatarWrap.appendChild(dot);
-      }
-    }
-
-    // --- Header: name + badge under it ---
-    const nameEl = node.querySelector(".person-card__name");
-    const statusBadge = node.querySelector(".status-badge");
-
-    const displayName = r.name || "Unnamed";
-    nameEl.textContent = displayName;
-    nameEl.title = displayName;
-
-    statusBadge.textContent = isBirthday ? "🎂 Birthday Today" : badgeText;
-    statusBadge.classList.add(badgeModifier);
-
-    // --- Rows ---
-    const birthVal = node.querySelector('[data-field="birthdate"]');
-    const ageVal = node.querySelector('[data-field="age"]');
-    const passedVal = node.querySelector('[data-field="passed"]');
-
-    if (birthVal) birthVal.textContent = fmtDate(r._birth);
-
-    if (ageVal) {
-      // Show label as "Current age" or "Age at passing"
-      const ageRow = ageVal.closest(".row");
-      const ageLabel = ageRow ? ageRow.querySelector(".row__label") : null;
-      if (ageLabel) ageLabel.textContent = isMemorial ? "Age at passing" : "Current age";
-      ageVal.textContent = r.ageText ? String(r.ageText) : "—";
-    }
-
-    if (passedVal) passedVal.textContent = fmtDate(r._passed);
-
-    // --- Memorial lines (years + "In loving memory") ---
-    // Insert these under badge, inside header, but after badge area for consistent layout
-    if (isMemorial) {
-      const header = node.querySelector(".person-card__header");
-
-      const memorialMark = document.createElement("div");
-      memorialMark.className = "memorialMark";
-      memorialMark.textContent = "In loving memory";
-
-      header.appendChild(memorialMark);
-
-      if (years) {
-        const memorialYears = document.createElement("div");
-        memorialYears.className = "memorialYears";
-        memorialYears.textContent = years;
-        header.appendChild(memorialYears);
-      }
-    }
-
-    // --- Tribute block (memorial only) ---
-    if (isMemorial && r.tribute && String(r.tribute).trim()) {
-      const tribute = document.createElement("div");
-      tribute.className = "tribute";
-      tribute.textContent = `“${String(r.tribute).trim()}”`;
-      node.querySelector(".person-card__main").appendChild(tribute);
-    }
-
-    // --- Would-have-turned block (memorial only) ---
-    if (isMemorial && r.wouldHaveTurned != null) {
-      const wht = document.createElement("div");
-      wht.className = "wouldHaveTurned";
-      // Use text nodes for safety (no HTML injection)
-      wht.appendChild(document.createTextNode("Remembering "));
-      const strongName = document.createElement("strong");
-      strongName.textContent = displayName;
-      wht.appendChild(strongName);
-      wht.appendChild(document.createTextNode(" today — would have turned "));
-      const strongAge = document.createElement("strong");
-      strongAge.textContent = String(r.wouldHaveTurned);
-      wht.appendChild(strongAge);
-      wht.appendChild(document.createTextNode("."));
-      node.querySelector(".person-card__main").appendChild(wht);
-    }
-
-    // Append card to fragment
-    frag.appendChild(node);
-
-    // Start carousel after card is in DOM fragment (img element exists)
-    const imgEl = node.querySelector("img.person-card__avatar-img");
-    if (imgEl && photos.length) startCarousel(imgEl, photos);
-  }
-
-  cards.appendChild(frag);
-}
-
-  // ============================
-  // Login UI + auth state
-  // ============================
-  async function completeEmailLinkSignin() {
-    const href = window.location.href;
-
-    if (!auth || !auth.isSignInWithEmailLink || !auth.isSignInWithEmailLink(href)) return;
-
-    const storedEmail = window.localStorage.getItem("emailForSignIn");
-    const email = storedEmail || window.prompt("Confirm your email to finish sign-in:");
-    if (!email) return;
-
-    try {
-      await auth.signInWithEmailLink(email, href);
-      window.localStorage.removeItem("emailForSignIn");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } catch (err) {
-      console.error(err);
-      alert("Sign-in failed. Please request a new login link and try again.");
-    }
-  }
-
-  function setUIAuthed(isAuthed, emailText) {
-    // index.html may not have loginBox/appBox wrappers; this is safe either way
-    const loginBox = $("loginBox");
-    const appBox = $("appBox");
-    const whoami = $("whoami");
-    const logoutBtn = $("logoutBtn");
-    const loginForm = $("loginForm");
-
-    if (loginBox) loginBox.style.display = isAuthed ? "none" : "";
-    if (appBox) appBox.style.display = isAuthed ? "" : "none";
-
-    // If wrappers do not exist, hide/show the login form directly
-    if (!loginBox && loginForm) loginForm.style.display = isAuthed ? "none" : "";
-
-    if (whoami) whoami.textContent = isAuthed ? (emailText || "Signed in") : "Not signed in";
-
-    // Your index.html uses hidden attribute initially; use hidden when available
-    if (logoutBtn) {
-      if ("hidden" in logoutBtn) logoutBtn.hidden = !isAuthed;
-      else logoutBtn.style.display = isAuthed ? "" : "none";
-    }
-  }
-
-  function wireLoginUI() {
-    const form = $("loginForm");
-    const emailEl = $("loginEmail");
-    const sendBtn = $("sendLinkBtn");
-    const logoutBtn = $("logoutBtn");
-
-    if (form && emailEl && sendBtn) {
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const email = (emailEl.value || "").trim();
-        if (!email) return;
-
-        sendBtn.disabled = true;
-        sendBtn.textContent = "Sending…";
-
-        try {
-          await auth.sendSignInLinkToEmail(email, actionCodeSettings);
-          window.localStorage.setItem("emailForSignIn", email);
-          alert("Login link sent. Open your email on this phone and tap the link.");
-        } catch (err) {
-          console.error(err);
-          alert(`Could not send link.\n\nError: ${err.code || "unknown"}\n${err.message || ""}`);
-        } finally {
-          sendBtn.disabled = false;
-          sendBtn.textContent = "Send login link";
-        }
-      });
-    }
-
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", async () => {
-        try {
-          await auth.signOut();
-        } catch (e) {
-          console.error(e);
-        }
-      });
-    }
-  }
-
-  function hookUI() {
-    const searchEl = $("search");
-    const showDeceasedEl = $("showDeceased");
-    const sortBtn = $("sortBtn");
-
-    if (searchEl) {
-      searchEl.addEventListener("input", (e) => {
-        state.q = e.target.value;
-        render();
-      });
-    }
-
-    if (showDeceasedEl) {
-      showDeceasedEl.addEventListener("change", (e) => {
-        state.showDeceased = e.target.checked;
-        render();
-      });
-    }
-
-    if (sortBtn) {
-      sortBtn.addEventListener("click", () => {
-        state.sortOldestFirst = !state.sortOldestFirst;
-        sortBtn.textContent = state.sortOldestFirst
-          ? "Sort: Oldest → Youngest"
-          : "Sort: Youngest → Oldest";
-        render();
-      });
-    }
-  }
-
-  // ============================
-  // Bootstrap
-  // ============================
-  async function bootstrap() {
-    if (!auth || !db || !storage) return;
-
-    wireLoginUI();
-    hookUI();
-
-    await completeEmailLinkSignin();
-
-    auth.onAuthStateChanged(async (user) => {
-      state.user = user || null;
-
-      if (!user) {
-        state.data = [];
-        setUIAuthed(false, "");
-        render();
-        return;
+        const ph = document.createElement("div");
+        ph.className = "avatar placeholder";
+        ph.textContent = "No photo";
+        avatarWrap.appendChild(ph);
       }
 
-      setUIAuthed(true, user.email || "");
+      const text = document.createElement("div");
+      text.className = "cardTopText";
 
-      try {
-        await loadPeopleOnce();
-        render();
-      } catch (err) {
-        console.error(err);
-        alert(`Error loading data: ${err.code || "unknown"}\n${err.message || err}`);
-        state.data = [];
-        render();
-      }
-    });
-  }
+      const name = document.createElement("h3");
+      name.className = "name";
+      name.textContent = p.name || "Unnamed";
 
-  bootstrap();
-})();
+      const badge = document.createElement("div");
+      badge.className = `badge ${p.status}`;
+      badge.textContent = p.status === "deceased" ? "In Memoriam" : "Living";
+
+      text.appendChild(name);
+      text.appendChild(badge);
+
+      top.appendChild(avatarWrap);
+      top.appendChild(text);
+      card.appendChil
+
