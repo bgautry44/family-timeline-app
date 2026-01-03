@@ -11,6 +11,8 @@
 
 *{ box-sizing:border-box; }
 
+html, body { height: 100%; }
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -24,7 +26,7 @@ body{
 }
 
 /* ---------------------------------
-   Header / Layout
+   Header
 ---------------------------------- */
 .app-header{
   border-bottom:1px solid var(--border);
@@ -91,8 +93,15 @@ body{
   font-size:12px;
 }
 
-.meta--stats{
-  padding-top:8px;
+/* Birthday line */
+.birthdayLine{
+  margin:8px 0 6px;
+  font-size:14px;
+  color:var(--muted);
+}
+.birthdayLine strong{
+  color:var(--text);
+  font-weight:700;
 }
 
 /* ---------------------------------
@@ -100,21 +109,19 @@ body{
 ---------------------------------- */
 .cards{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap:12px;
   padding:14px 0 18px;
 }
 
 /* ---------------------------------
-   Person Card (NEW DOM)
-   Avatar LEFT (72px)
-   Name top, badge under name
-   Strict rows underneath
+   PERSON CARD (Template-based)
+   Avatar left, name top, badge under
 ---------------------------------- */
 .person-card{
   display:grid;
   grid-template-columns: 72px 1fr;
-  gap:12px;
+  gap:14px;
   align-items:start;
 
   border:1px solid var(--border);
@@ -124,7 +131,7 @@ body{
 }
 
 .person-card__main{
-  min-width:0; /* critical for ellipsis + preventing weird grid wrap */
+  min-width:0; /* required for ellipsis in grid */
 }
 
 .person-card__avatar{
@@ -143,7 +150,7 @@ body{
   background:#0e1422;
 }
 
-/* If you create a div.placeholder instead of an img */
+/* Placeholder div (when no img) */
 .avatar.placeholder{
   width:72px;
   height:72px;
@@ -173,7 +180,7 @@ body{
   color: rgba(255,122,26,.95);
 }
 
-/* Header stack: Name (single-line) then badge then optional memorial lines */
+/* Header stack */
 .person-card__header{
   display:grid;
   gap:6px;
@@ -186,7 +193,6 @@ body{
   font-size:18px;
   line-height:1.2;
 
-  /* keep on one line (desktop-first) */
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -198,7 +204,7 @@ body{
   align-items:center;
 }
 
-/* Badge */
+/* Status badge */
 .status-badge{
   display:inline-flex;
   align-items:center;
@@ -208,4 +214,52 @@ body{
   border-radius:999px;
   border:1px solid var(--border);
   color:var(--muted);
-  w
+  width:fit-content;
+}
+
+.status-badge--living{
+  border-color: rgba(56,211,159,.35);
+  color: rgba(56,211,159,.95);
+}
+
+.status-badge--deceased{
+  border-color: rgba(255,92,122,.35);
+  color: rgba(255,92,122,.95);
+}
+
+.status-badge--birthday{
+  border-color: rgba(255,122,26,.6);
+  color: rgba(255,122,26,1);
+  font-weight:800;
+}
+
+/* Memorial lines under badge */
+.memorialMark{
+  font-size:13px;
+  color: var(--accent);
+}
+.memorialYears{
+  font-size:13px;
+  color: var(--muted);
+}
+
+/* ---------------------------------
+   ROWS (HARD FIX)
+   Works for BOTH markup styles:
+   A) .row__label / .row__value
+   B) <span>label</span><span>value</span>
+---------------------------------- */
+.person-card__rows{
+  display:grid;
+  gap:8px;
+}
+
+.person-card__rows .row{
+  /* Force layout even if other CSS tries to override */
+  display:grid !important;
+  grid-template-columns: 140px minmax(0, 1fr);
+  column-gap:12px;
+  align-items:baseline;
+
+  padding:8px
+
