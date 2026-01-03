@@ -5,6 +5,8 @@
   --text:#e8eef7;
   --accent:#ff7a1a;
   --border:#243248;
+  --good:#38d39f;
+  --bad:#ff5c7a;
 }
 
 *{ box-sizing:border-box; }
@@ -74,12 +76,9 @@ h1{
   font-size:12px;
 }
 
-/* -----------------------------
-   Grid + Card
------------------------------- */
 .cards{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap:12px;
   padding:14px 0 18px;
 }
@@ -92,13 +91,14 @@ h1{
 }
 
 /* -----------------------------
-   Card header (Avatar + Name)
-   72px avatar supported cleanly
+   Header: Avatar LEFT, Text RIGHT
+   Name on top, Badge directly below
 ------------------------------ */
 .cardTop{
-  display:flex;
-  gap:12px;
-  align-items:flex-start;     /* key for larger avatar */
+  display:grid;
+  grid-template-columns: 72px 1fr;
+  column-gap:12px;
+  align-items:start;
   margin:0 0 12px;
 }
 
@@ -106,7 +106,6 @@ h1{
   position:relative;
   width:72px;
   height:72px;
-  flex:0 0 72px;
 }
 
 .avatar{
@@ -119,7 +118,6 @@ h1{
   background:#0e1422;
 }
 
-/* Placeholder when no image */
 .avatar.placeholder{
   width:72px;
   height:72px;
@@ -133,84 +131,136 @@ h1{
   background:#0e1422;
 }
 
+.avatarDot{
+  position:absolute;
+  right:-2px;
+  bottom:-2px;
+  width:16px;
+  height:16px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.16);
+  background: rgba(10,14,20,.95);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+  color: rgba(255,122,26,.95);
+}
+
 .cardTopText{
-  flex:1 1 auto;
   min-width:0;
   display:flex;
   flex-direction:column;
-  gap:6px;
+  gap:6px;          /* ensures clear separation */
 }
 
 .name{
-  font-weight:700;
+  margin:0;
+  font-weight:800;
   font-size:18px;
   line-height:1.2;
-  margin:0;                  /* prevent layout drift */
+}
+
+/* Badge directly below name */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  color:var(--muted);
+  width:fit-content;
+}
+
+.badge.alive{
+  border-color: rgba(56,211,159,.35);
+  color: rgba(56,211,159,.95);
+}
+
+.badge.deceased{
+  border-color: rgba(255,92,122,.35);
+  color: rgba(255,92,122,.95);
+}
+
+.badge.birthday{
+  border-color: rgba(255,122,26,.6);
+  color: rgba(255,122,26,1);
+  font-weight:800;
+}
+
+/* Memorial lines stay under badge */
+.memorialMark{
+  font-size:13px;
+  color: var(--accent);
+  margin-top:0;
+}
+
+.memorialYears{
+  font-size:13px;
+  color: var(--muted);
+  margin-top:0;
 }
 
 /* -----------------------------
-   Rows inside card
+   Rows: each on its own line
 ------------------------------ */
 .row{
   display:flex;
   justify-content:space-between;
-  align-items:flex-start;
+  align-items:baseline;
   gap:14px;
-  margin:10px 0;
+  padding:8px 0;
+  border-top:1px solid rgba(255,255,255,0.06);
   font-size:14px;
-  line-height:1.4;
+  line-height:1.35;
   color:var(--muted);
+}
+
+.row:first-of-type{
+  border-top:none;
 }
 
 .value{
   color:var(--text);
-  font-weight:600;
+  font-weight:700;
   text-align:right;
-  max-width:55%;
+  max-width:60%;
+  white-space:normal;
   word-break:break-word;
 }
 
-/* -----------------------------
-   Memorial / Birthday lines
------------------------------- */
-.memorialMark{
-  font-size:12px;
-  color:var(--accent);
-  margin-top:2px;
-}
-
-.memorialYears{
-  font-size:12px;
-  color:var(--muted);
-  margin-top:2px;
-}
-
+/* Remembering block */
 .wouldHaveTurned{
   margin-top:14px;
   padding-top:10px;
-  border-top:1px solid rgba(255,255,255,0.08);
+  border-top:1px solid rgba(255,255,255,0.10);
   font-size:14px;
   line-height:1.45;
   color:var(--text);
 }
 
-/* -----------------------------
-   Birthday line under header
------------------------------- */
+/* Fade animation for carousel */
+.fadeIn{
+  animation: fadeInQuick .22s ease-out;
+}
+@keyframes fadeInQuick{
+  from { opacity: .25; }
+  to   { opacity: 1; }
+}
+
+/* Header birthday line */
 .birthdayLine{
   margin:8px 0 6px;
   font-size:14px;
   color:var(--muted);
 }
-
 .birthdayLine strong{
-  color:var(--text);
-  font-weight:600;
+  color: var(--text);
+  font-weight:700;
 }
 
-/* -----------------------------
-   Empty state
------------------------------- */
 .empty{
   color:var(--muted);
   text-align:center;
