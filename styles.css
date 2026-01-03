@@ -23,6 +23,9 @@ body{
   margin:0 auto;
 }
 
+/* ---------------------------------
+   Header / Layout
+---------------------------------- */
 .app-header{
   border-bottom:1px solid var(--border);
   background:rgba(10,14,20,.7);
@@ -32,7 +35,7 @@ body{
   z-index:10;
 }
 
-h1{
+.app-title{
   margin:0;
   padding:18px 0 6px;
   font-size:22px;
@@ -42,6 +45,18 @@ h1{
   margin:0 0 10px;
   color:var(--muted);
   font-size:13px;
+}
+
+.app-header__top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+
+.app-header__auth{
+  padding-top:18px;
+  white-space:nowrap;
 }
 
 .controls{
@@ -76,39 +91,49 @@ h1{
   font-size:12px;
 }
 
+.meta--stats{
+  padding-top:8px;
+}
+
+/* ---------------------------------
+   Cards Grid
+---------------------------------- */
 .cards{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap:12px;
   padding:14px 0 18px;
 }
 
-.card{
+/* ---------------------------------
+   Person Card (NEW DOM)
+   Avatar LEFT (72px)
+   Name top, badge under name
+   Strict rows underneath
+---------------------------------- */
+.person-card{
+  display:grid;
+  grid-template-columns: 72px 1fr;
+  gap:12px;
+  align-items:start;
+
   border:1px solid var(--border);
   border-radius:16px;
   background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6));
   padding:16px 16px 14px;
 }
 
-/* -----------------------------
-   Header: Avatar LEFT, Text RIGHT
-   Name on top, Badge directly below
------------------------------- */
-.cardTop{
-  display:grid;
-  grid-template-columns: 72px 1fr;
-  column-gap:12px;
-  align-items:start;
-  margin:0 0 12px;
+.person-card__main{
+  min-width:0; /* critical for ellipsis + preventing weird grid wrap */
 }
 
-.avatarWrap{
+.person-card__avatar{
   position:relative;
   width:72px;
   height:72px;
 }
 
-.avatar{
+.person-card__avatar-img{
   width:72px;
   height:72px;
   border-radius:999px;
@@ -118,6 +143,7 @@ h1{
   background:#0e1422;
 }
 
+/* If you create a div.placeholder instead of an img */
 .avatar.placeholder{
   width:72px;
   height:72px;
@@ -147,22 +173,33 @@ h1{
   color: rgba(255,122,26,.95);
 }
 
-.cardTopText{
-  min-width:0;
-  display:flex;
-  flex-direction:column;
-  gap:6px;          /* ensures clear separation */
+/* Header stack: Name (single-line) then badge then optional memorial lines */
+.person-card__header{
+  display:grid;
+  gap:6px;
+  margin-bottom:10px;
 }
 
-.name{
+.person-card__name{
   margin:0;
   font-weight:800;
   font-size:18px;
   line-height:1.2;
+
+  /* keep on one line (desktop-first) */
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  min-width:0;
 }
 
-/* Badge directly below name */
-.badge{
+.person-card__status{
+  display:flex;
+  align-items:center;
+}
+
+/* Badge */
+.status-badge{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -171,123 +208,4 @@ h1{
   border-radius:999px;
   border:1px solid var(--border);
   color:var(--muted);
-  width:fit-content;
-}
-
-.badge.alive{
-  border-color: rgba(56,211,159,.35);
-  color: rgba(56,211,159,.95);
-}
-
-.badge.deceased{
-  border-color: rgba(255,92,122,.35);
-  color: rgba(255,92,122,.95);
-}
-
-.badge.birthday{
-  border-color: rgba(255,122,26,.6);
-  color: rgba(255,122,26,1);
-  font-weight:800;
-}
-
-/* Memorial lines stay under badge */
-.memorialMark{
-  font-size:13px;
-  color: var(--accent);
-  margin-top:0;
-}
-
-.memorialYears{
-  font-size:13px;
-  color: var(--muted);
-  margin-top:0;
-}
-
-/* -----------------------------
-   Rows: each on its own line
------------------------------- */
-.row{
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  gap:14px;
-  padding:8px 0;
-  border-top:1px solid rgba(255,255,255,0.06);
-  font-size:14px;
-  line-height:1.35;
-  color:var(--muted);
-}
-
-.row:first-of-type{
-  border-top:none;
-}
-
-.value{
-  color:var(--text);
-  font-weight:700;
-  text-align:right;
-  max-width:60%;
-  white-space:normal;
-  word-break:break-word;
-}
-
-/* Remembering block */
-.wouldHaveTurned{
-  margin-top:14px;
-  padding-top:10px;
-  border-top:1px solid rgba(255,255,255,0.10);
-  font-size:14px;
-  line-height:1.45;
-  color:var(--text);
-}
-
-/* Fade animation for carousel */
-.fadeIn{
-  animation: fadeInQuick .22s ease-out;
-}
-@keyframes fadeInQuick{
-  from { opacity: .25; }
-  to   { opacity: 1; }
-}
-
-/* Header birthday line */
-.birthdayLine{
-  margin:8px 0 6px;
-  font-size:14px;
-  color:var(--muted);
-}
-.birthdayLine strong{
-  color: var(--text);
-  font-weight:700;
-}
-
-/* Accessibility helpers */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0,0,0,0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.skip-link {
-  position: absolute;
-  left: -999px;
-  top: 10px;
-}
-
-.skip-link:focus {
-  left: 10px;
-  z-index: 1000;
-}
-
-
-.empty{
-  color:var(--muted);
-  text-align:center;
-  padding:28px 0;
-}
+  w
