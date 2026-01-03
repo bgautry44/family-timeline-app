@@ -7,17 +7,20 @@
   --border:#243248;
 }
 
-*{box-sizing:border-box}
+*{ box-sizing:border-box; }
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   background:linear-gradient(180deg, #070a0f 0%, #0b0f14 40%, #0b0f14 100%);
   color:var(--text);
 }
+
 .container{
   width:min(980px, 92vw);
   margin:0 auto;
 }
+
 .app-header{
   border-bottom:1px solid var(--border);
   background:rgba(10,14,20,.7);
@@ -26,16 +29,19 @@ body{
   top:0;
   z-index:10;
 }
+
 h1{
   margin:0;
   padding:18px 0 6px;
   font-size:22px;
 }
+
 .subtitle{
   margin:0 0 10px;
   color:var(--muted);
   font-size:13px;
 }
+
 .controls{
   display:flex;
   gap:10px;
@@ -43,7 +49,9 @@ h1{
   align-items:center;
   padding:10px 0;
 }
-.controls input, .controls button{
+
+.controls input,
+.controls button{
   padding:10px 12px;
   border:1px solid var(--border);
   border-radius:12px;
@@ -51,10 +59,12 @@ h1{
   color:var(--text);
   font-size:13px;
 }
+
 .controls input{
   flex:1 1 260px;
   min-width:200px;
 }
+
 .meta{
   display:flex;
   gap:14px;
@@ -63,63 +73,33 @@ h1{
   color:var(--muted);
   font-size:12px;
 }
-.name{
-  font-weight:700;
-  font-size:18px;
-  line-height:1.25;
-  margin:0 0 6px;
+
+/* -----------------------------
+   Grid + Card
+------------------------------ */
+.cards{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap:12px;
+  padding:14px 0 18px;
 }
 
-/* --- Photo / avatar support --- */
+.card{
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6));
+  padding:16px 16px 14px;
+}
+
+/* -----------------------------
+   Card header (Avatar + Name)
+   72px avatar supported cleanly
+------------------------------ */
 .cardTop{
   display:flex;
   gap:12px;
-  align-items:center;
-  margin:0 0 10px;
-}
-
-.avatarWrap{
-  position:relative;
-  width:72px;
-  height:72px;
-  flex:0 0 auto;
-}
-
-.avatar{
-  width:72px;
-  height:72px;
-  border-radius:999px;
-  object-fit:cover;
-  display:block;
-  border:1px solid rgba(255,255,255,0.14);
-  background:#0e1422;
-}
-
-/* If no photo */
-.avatar.placeholder{
-  width:72px;
-  height:72px;
-  border-radius:999px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--muted);
-  font-size:12px;
-  border:1px solid rgba(255,255,255,0.14);
-  background:#0e1422;
-}
-
-.cardTopText{
-  flex:1 1 auto;
-  min-width:0;
-}
-
-/* --- Card header layout (fix for larger avatars like 72px) --- */
-.cardTop{
-  display:flex;
-  gap:12px;
-  align-items:flex-start;   /* key change: no vertical centering */
-  margin:0 0 10px;
+  align-items:flex-start;     /* key for larger avatar */
+  margin:0 0 12px;
 }
 
 .avatarWrap{
@@ -139,7 +119,7 @@ h1{
   background:#0e1422;
 }
 
-/* if you have placeholders */
+/* Placeholder when no image */
 .avatar.placeholder{
   width:72px;
   height:72px;
@@ -156,36 +136,25 @@ h1{
 .cardTopText{
   flex:1 1 auto;
   min-width:0;
-  display:flex;             /* key change: controlled stacking */
+  display:flex;
   flex-direction:column;
   gap:6px;
 }
 
-.cardTopText .name{
-  margin:0;                 /* key change: stop margins fighting layout */
-  line-height:1.15;
+.name{
+  font-weight:700;
+  font-size:18px;
+  line-height:1.2;
+  margin:0;                  /* prevent layout drift */
 }
 
-.cardTopText .badge{
-  margin-top:0;             /* keep badge tight under name */
-}
-
-.cards{
-  display:grid;
-  grid-template-columns: repeat( auto-fit, minmax(240px, 1fr) );
-  gap:12px;
-  padding:14px 0 18px;
-}
-.card{
-  border:1px solid var(--border);
-  border-radius:16px;
-  background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6));
-  padding:16px 16px 14px;
-}
-
+/* -----------------------------
+   Rows inside card
+------------------------------ */
 .row{
   display:flex;
   justify-content:space-between;
+  align-items:flex-start;
   gap:14px;
   margin:10px 0;
   font-size:14px;
@@ -193,6 +162,17 @@ h1{
   color:var(--muted);
 }
 
+.value{
+  color:var(--text);
+  font-weight:600;
+  text-align:right;
+  max-width:55%;
+  word-break:break-word;
+}
+
+/* -----------------------------
+   Memorial / Birthday lines
+------------------------------ */
 .memorialMark{
   font-size:12px;
   color:var(--accent);
@@ -214,22 +194,25 @@ h1{
   color:var(--text);
 }
 
-
-.value{
-  color:var(--text);
-  font-weight:600;
-  text-align:right;
-  max-width:55%;
-}
-
-.empty{
-  color:var(--muted);
-  text-align:center;
-  padding:28px 0;
-}
+/* -----------------------------
+   Birthday line under header
+------------------------------ */
 .birthdayLine{
   margin:8px 0 6px;
   font-size:14px;
   color:var(--muted);
 }
-.birthdayLine strong{ color: var(--text); font-weight:600; }
+
+.birthdayLine strong{
+  color:var(--text);
+  font-weight:600;
+}
+
+/* -----------------------------
+   Empty state
+------------------------------ */
+.empty{
+  color:var(--muted);
+  text-align:center;
+  padding:28px 0;
+}
