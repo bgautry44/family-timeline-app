@@ -2,16 +2,22 @@
   const $ = (id) => document.getElementById(id);
 
   // ============================
-  // CONFIG
+  // CONFIG (SET THIS)
   // ============================
   const FAMILY_ID = "e538i47rIjVIS7xGdCtC";
 
   // ============================
   // Firebase (compat)
   // ============================
-  const auth = window.auth ?? firebase.auth();
-  const db = window.db ?? firebase.firestore();
-  const storage = window.storage ?? firebase.storage();
+  const auth = window.auth ? window.auth : (window.firebase ? window.firebase.auth() : null);
+  const db = window.db ? window.db : (window.firebase ? window.firebase.firestore() : null);
+  const storage = window.storage ? window.storage : (window.firebase ? window.firebase.storage() : null);
+
+  if (!auth || !db || !storage) {
+    console.error(
+      "Firebase auth/db/storage not found. Ensure compat scripts are loaded and firebase.initializeApp() has run (firebase.js)."
+    );
+  }
 
   // Email link sign-in settings
   const actionCodeSettings = {
@@ -24,166 +30,177 @@
   // ============================
   const state = {
     data: [],
-    user: null,
-    q: "",
     showDeceased: true,
     sortOldestFirst: true,
+    q: "",
+    user: null,
     familyId: FAMILY_ID
   };
 
   // ============================
-  // Date helpers
+  // Helpers
   // ============================
-  const todayLocal = () => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  };
+  function normalize(s) {
+    return (s || "").toString().toLowerCase().trim();
+  }
 
-  const parseDate = (v) => {
-    if (!v) return null;
-    if (v.toDate) {
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (s) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[s]));
+  }
+
+  function localDateFromYMD(y, m, d) {
+    const dt = new Date(Number(y), Number(m) - 1, Number(d));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  // Parse as LOCAL date to avoid 1-day shifts, supports Firestore Timestamp
+  function parseISODate(v) {
+    if (v == null || v === "") return null;
+
+    // Date object
+    if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
+      return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+    }
+
+    // Firestore Timestamp
+    if (v && typeof v.toDate === "function") {
       const d = v.toDate();
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
-    const d = new Date(v);
-    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  };
 
-  const fmtDate = (d) =>
-    d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+    // ISO YYYY-MM-DD
+    if (typeof v === "string") {
+      const s = v.trim();
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return localDateFromYMD(m[1], m[2], m[3]);
 
-  const diffYMD = (from, to) => {
+      // fallback
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return null;
+    }
+
+    return null;
+  }
+
+  function todayLocal() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  function sameMonthDay(a, b) {
+    return a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function nextBirthdayDate(birth, today) {
+    if (!birth) return null;
+    const d = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
+    return (d < today) ? new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate()) : d;
+  }
+
+  // Calendar-accurate Y/M/D difference
+  function diffYMD(from, to) {
     let y = to.getFullYear() - from.getFullYear();
     let m = to.getMonth() - from.getMonth();
     let d = to.getDate() - from.getDate();
+
     if (d < 0) {
-      m--;
-      d += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
+      m -= 1;
+      const daysInPrevMonth = new Date(to.getFullYear(), to.getMonth(), 0).getDate();
+      d += daysInPrevMonth;
     }
     if (m < 0) {
-      y--;
+      y -= 1;
       m += 12;
     }
-    return `${y} year${y !== 1 ? "s" : ""}, ${m} month${m !== 1 ? "s" : ""}, ${d} day${d !== 1 ? "s" : ""}`;
-  };
+    return { y, m, d };
+  }
+
+  function fmtYMD(o) {
+    if (!o) return "—";
+    return [
+      `${o.y} year${o.y === 1 ? "" : "s"}`,
+      `${o.m} month${o.m === 1 ? "" : "s"}`,
+      `${o.d} day${o.d === 1 ? "" : "s"}`
+    ].join(", ");
+  }
+
+  function fmtDate(d) {
+    if (!d) return "—";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
 
   // ============================
-  // Photos
+  // Storage photo URL resolving
   // ============================
-  async function resolvePhotos(person) {
-    const paths = Array.isArray(person.photos)
-      ? person.photos
-      : person.photos ? [person.photos] : [];
+  const photoUrlCache = new Map(); // key: storagePath, value: downloadUrl
 
-    const urls = [];
-    for (const p of paths) {
-      if (/^https?:\/\//i.test(p)) {
-        urls.push(p);
-      } else {
+  function normalizePhotoPaths(r) {
+    const list = [];
+    if (Array.isArray(r?.photos)) list.push(...r.photos);
+    else if (typeof r?.photos === "string" && r.photos.trim()) list.push(r.photos.trim());
+    if (typeof r?.photo === "string" && r.photo.trim()) list.push(r.photo.trim());
+
+    return list.map(x => (x == null ? "" : String(x).trim())).filter(Boolean);
+  }
+
+  async function getDownloadUrlForPath(storagePath) {
+    if (!storagePath) return null;
+    if (/^https?:\/\//i.test(storagePath)) return storagePath;
+
+    if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
+
+    const url = await storage.ref(storagePath).getDownloadURL();
+    photoUrlCache.set(storagePath, url);
+    return url;
+  }
+
+  async function hydratePeoplePhotoUrls(peopleArray) {
+    if (!Array.isArray(peopleArray) || !peopleArray.length) return peopleArray;
+
+    for (const p of peopleArray) {
+      const paths = normalizePhotoPaths(p);
+      if (!paths.length) {
+        p._photoUrls = [];
+        continue;
+      }
+
+      const urls = [];
+      for (const path of paths) {
         try {
-          urls.push(await storage.ref(p).getDownloadURL());
+          const u = await getDownloadUrlForPath(path);
+          if (u) urls.push(u);
         } catch (e) {
-          console.warn("Photo load failed:", p);
+          console.warn("Could not load photo URL for:", path, e);
         }
       }
+      p._photoUrls = urls;
     }
-    person._photos = urls;
+    return peopleArray;
+  }
+
+  function photoList(r) {
+    if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
+
+    const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
+    if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
+
+    const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
+    return single ? [single] : [];
   }
 
   // ============================
-  // Compute derived fields
+  // Data computation
   // ============================
-  function compute(person) {
-    const birth = parseDate(person.birthdate);
-    const passed = parseDate(person.passed);
+  function computeRow(r) {
+    const birth = parseISODate(r.birthdate);
+    const passed = parseISODate(r.passed);
+
     const today = todayLocal();
-    const deceased = passed && passed <= today;
-
-    return {
-      ...person,
-      _birth: birth,
-      _passed: deceased ? passed : null,
-      status: deceased ? "deceased" : "alive",
-      ageText: birth ? diffYMD(birth, deceased ? passed : today) : "—",
-    };
-  }
-
-  // ============================
-  // Load Firestore
-  // ============================
-  async function loadPeople() {
-    const snap = await db
-      .collection("families")
-      .doc(state.familyId)
-      .collection("people")
-      .get();
-
-    const people = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    for (const p of people) await resolvePhotos(p);
-    state.data = people;
-  }
-
-  // ============================
-  // Render
-  // ============================
-  function render() {
-    const cards = $("cards");
-    const empty = $("empty");
-    cards.innerHTML = "";
-
-    const rows = state.data.map(compute)
-      .filter(p => state.showDeceased || p.status !== "deceased")
-      .sort((a, b) =>
-        state.sortOldestFirst
-          ? (a._birth?.getTime() ?? 0) - (b._birth?.getTime() ?? 0)
-          : (b._birth?.getTime() ?? 0) - (a._birth?.getTime() ?? 0)
-      );
-
-    if (!rows.length) {
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-
-    for (const p of rows) {
-      const card = document.createElement("div");
-      card.className = `card ${p.status === "deceased" ? "memorial" : ""}`;
-
-      // ---- Header (THIS IS THE FIX) ----
-      const top = document.createElement("div");
-      top.className = "cardTop";
-
-      const avatarWrap = document.createElement("div");
-      avatarWrap.className = "avatarWrap";
-
-      if (p._photos?.length) {
-        const img = document.createElement("img");
-        img.className = "avatar";
-        img.src = p._photos[0];
-        img.alt = `Photo of ${p.name}`;
-        avatarWrap.appendChild(img);
-      } else {
-        const ph = document.createElement("div");
-        ph.className = "avatar placeholder";
-        ph.textContent = "No photo";
-        avatarWrap.appendChild(ph);
-      }
-
-      const text = document.createElement("div");
-      text.className = "cardTopText";
-
-      const name = document.createElement("h3");
-      name.className = "name";
-      name.textContent = p.name || "Unnamed";
-
-      const badge = document.createElement("div");
-      badge.className = `badge ${p.status}`;
-      badge.textContent = p.status === "deceased" ? "In Memoriam" : "Living";
-
-      text.appendChild(name);
-      text.appendChild(badge);
-
-      top.appendChild(avatarWrap);
-      top.appendChild(text);
-      card.appendChil
-
+    const passe
