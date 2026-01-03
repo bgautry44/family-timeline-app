@@ -10,7 +10,7 @@
   --good:#38d39f;
   --bad:#ff5c7a;
 
-  /* Target avatar size (your “known good” baseline) */
+  /* Known-good avatar size */
   --avatar:56px;
 }
 
@@ -25,11 +25,7 @@ body{
 }
 
 /* Defensive: never allow images to blow out layout */
-img{
-  max-width:100%;
-  height:auto;
-  display:block;
-}
+img{ max-width:100%; height:auto; display:block; }
 
 .container{
   width:min(980px, 92vw);
@@ -51,14 +47,14 @@ img{
 .app-title{
   margin:0;
   padding:18px 0 6px;
-  font-size:42px;
+  font-size:44px;
   line-height:1.05;
 }
 
 .subtitle{
   margin:0 0 12px;
   color:var(--muted);
-  font-size:18px;
+  font-size:20px;
   line-height:1.35;
 }
 
@@ -80,7 +76,7 @@ img{
   gap:14px;
   padding:12px 0 16px;
   color:var(--muted);
-  font-size:14px;
+  font-size:16px;
 }
 
 .controls{
@@ -96,12 +92,12 @@ img{
 .controls select{
   appearance:none;
   -webkit-appearance:none;
-  padding:12px 14px;
-  border-radius:16px;
+  padding:14px 16px;
+  border-radius:18px;
   border:1px solid rgba(255,255,255,0.12);
   background:rgba(14,20,34,.75);
   color:var(--text);
-  font-size:14px;
+  font-size:16px;
 }
 
 .controls input{
@@ -109,20 +105,18 @@ img{
   min-width:220px;
 }
 
-.controls button{
-  cursor:pointer;
-}
+.controls button{ cursor:pointer; }
 
 button#logoutBtn{
-  padding:10px 14px;
-  border-radius:16px;
+  padding:12px 16px;
+  border-radius:18px;
   background:rgba(255,255,255,0.10);
   border:1px solid rgba(255,255,255,0.16);
 }
 
 .birthdayLine{
   margin:10px 0 2px;
-  font-size:14px;
+  font-size:16px;
   color:var(--muted);
 }
 .birthdayLine strong{
@@ -164,9 +158,7 @@ button#logoutBtn{
 }
 
 @media (min-width: 900px){
-  .cards{
-    grid-template-columns: repeat(2, minmax(360px, 1fr));
-  }
+  .cards{ grid-template-columns: repeat(2, minmax(360px, 1fr)); }
 }
 
 /* ------------------------------
@@ -178,7 +170,7 @@ button#logoutBtn{
   border-radius:22px;
   background:linear-gradient(180deg, rgba(18,24,38,.92), rgba(18,24,38,.70));
   padding:16px 16px 14px;
-  overflow:hidden; /* critical: prevents any internal overflow */
+  overflow:hidden; /* prevents spill */
 }
 
 /* Optional memorial border */
@@ -188,28 +180,36 @@ button#logoutBtn{
 }
 
 /* ------------------------------
-   Layout: avatar LEFT, content RIGHT
-   Works for both:
-   - new: .person-card + .person-card__avatar + .person-card__main
-   - old: .cardTop + .avatarWrap + .cardTopText
+   CARD LAYOUT: Avatar left, content right
+   (TOP aligned — fixes “name mid-way”)
 ------------------------------- */
 .person-card{
   display:grid;
   grid-template-columns: var(--avatar) 1fr;
   column-gap:14px;
-  align-items:start;
+
+  /* critical: top alignment */
+  align-items:start !important;
+}
+
+.person-card__avatar{
+  align-self:start !important;
 }
 
 .person-card__main{
   min-width:0;
+  align-self:start !important;
+  padding-top:0 !important;
+  margin-top:0 !important;
 }
 
+/* Old wrapper support */
 .cardTop{
   display:grid;
   grid-template-columns: var(--avatar) 1fr;
   column-gap:14px;
-  align-items:start;
-  margin-bottom:12px;
+  align-items:start !important;
+  margin:0 0 12px;
 }
 
 .cardTopText{
@@ -220,7 +220,8 @@ button#logoutBtn{
 }
 
 /* ------------------------------
-   Avatar wrappers (HARD clamp)
+   Avatar (HARD clamp to 56x56)
+   Works even if carousel swaps the <img>
 ------------------------------- */
 .person-card__avatar,
 .avatarWrap{
@@ -238,7 +239,7 @@ button#logoutBtn{
   flex:none;
 }
 
-/* HARD clamp any image that ends up inside avatar wrapper */
+/* Clamp any image inside avatar wrappers */
 .person-card__avatar img,
 .avatarWrap img{
   width:var(--avatar) !important;
@@ -254,7 +255,7 @@ button#logoutBtn{
   background:var(--panel);
 }
 
-/* Also clamp the known class names if present */
+/* Known class names (extra insurance) */
 img.person-card__avatar-img,
 img.avatar{
   width:var(--avatar) !important;
@@ -294,5 +295,18 @@ img.avatar{
 }
 
 /* ------------------------------
-   Header: Name top, badge under
---
+   Header: Name top, badge directly under name
+------------------------------- */
+.person-card__header{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:8px !important;
+
+  /* ensures header starts at top */
+  margin:0 0 10px !important;
+  padding:0 !important;
+}
+
+.person-card
