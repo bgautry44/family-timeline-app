@@ -115,8 +115,7 @@ body{
 }
 
 /* ---------------------------------
-   PERSON CARD (Template-based)
-   Desktop: avatar left, header + rows to right
+   PERSON CARD
 ---------------------------------- */
 .person-card{
   display:grid;
@@ -131,7 +130,18 @@ body{
 }
 
 .person-card__main{
-  min-width:0; /* required for ellipsis in grid */
+  min-width:0;
 }
 
-.person-
+/* ---- Avatar: HARD CONSTRAINT ---- */
+.person-card__avatar{
+  position:relative;
+  inline-size:72px !important;
+  block-size:72px !important;
+  max-inline-size:72px !important;
+  max-block-size:72px !important;
+  min-inline-size:72px !important;
+  min-block-size:72px !important;
+
+  overflow:hidden;              /* prevents image spill */
+  border-radius:999
