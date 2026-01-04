@@ -4,141 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Family Timeline</title>
-  <meta name="description" content="Private family timeline with birthdays, memorials, and photos." />
-
   <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-
   <header class="app-header">
     <div class="container">
-      <div class="app-header__top">
-        <div class="app-header__branding">
-          <h1 id="appTitle">Family Timeline</h1>
-          <p id="appSubtitle" class="subtitle">Private family timeline with birthdays, memorials, and photos.</p>
-        </div>
+      <h1 id="appTitle">Family Timeline</h1>
+      <p id="appSubtitle" class="subtitle">Stories shared, lives remembered.</p>
 
-        <div class="app-header__auth meta">
-          <span id="whoami">Not signed in</span>
-          <button id="logoutBtn" type="button" hidden>Log out</button>
-        </div>
+      <!-- Login status -->
+      <div class="meta" style="padding-top:0;">
+        <span id="whoami">Not signed in</span>
+        <button id="logoutBtn" type="button" hidden>Log out</button>
       </div>
 
-      <form id="loginForm" class="controls controls--login" novalidate>
-        <label class="sr-only" for="loginEmail">Email</label>
-        <input
-          id="loginEmail"
-          type="email"
-          placeholder="Enter email for login link…"
-          autocomplete="email"
-          inputmode="email"
-          required
-        />
+      <!-- Login form -->
+      <form id="loginForm" class="controls" style="padding-top:6px;">
+        <input id="loginEmail" type="email" placeholder="Enter email for login link…" autocomplete="email" required />
         <button id="sendLinkBtn" type="submit">Send login link</button>
       </form>
 
       <!-- App controls (shown after login) -->
-<div id="appControls" class="controls" hidden>
-  <input
-    id="search"
-    type="search"
-    placeholder="Search by name…"
-    autocomplete="off"
-    inputmode="search"
-  />
+      <div id="appControls" class="controls" hidden>
+        <input id="search" type="search" placeholder="Search by name…" autocomplete="off" inputmode="search" />
+        <label class="toggle" title="Show deceased">
+          <input id="showDeceased" type="checkbox" checked />
+          <span>Show deceased</span>
+        </label>
+        <button id="sortBtn" type="button">Sort: Oldest → Youngest</button>
+      </div>
 
-  <label class="toggle" title="Show deceased">
-    <input id="showDeceased" type="checkbox" checked />
-    <span>Show deceased</span>
-  </label>
+      <!-- Optional line for upcoming birthdays -->
+      <div id="birthdayLine" class="birthdayLine" hidden></div>
 
-  <button id="sortBtn" type="button">Sort: Oldest → Youngest</button>
-</div>
-
-
-      <div class="app-header__meta">
-        <div id="birthdayLine" class="birthdayLine" hidden></div>
-
-        <div class="meta meta--stats">
-          <span id="asOf"></span>
-          <span id="count"></span>
-        </div>
+      <div class="meta">
+        <span id="asOf"></span>
+        <span id="count"></span>
       </div>
     </div>
   </header>
 
-  <main id="main" class="container" tabindex="-1">
-    <section class="cards-section" aria-label="Family members">
-      <div id="cards" class="cards" role="list"></div>
-      <p id="empty" class="empty" hidden>No matches.</p>
-    </section>
+  <main class="container">
+    <div id="cards" class="cards"></div>
+    <p id="empty" class="empty" hidden>No matches.</p>
   </main>
-
-  <!-- Person Card Template (single source of truth for the card DOM) -->
-  <template id="personCardTemplate">
-    <article class="person-card" role="listitem">
-      <div class="person-card__avatar">
-        <img
-          class="person-card__avatar-img"
-          src=""
-          alt=""
-          loading="lazy"
-        />
-      </div>
-
-      <div class="person-card__main">
-        <header class="person-card__header">
-          <h3 class="person-card__name" title=""></h3>
-          <div class="person-card__status">
-            <span class="status-badge"></span>
-          </div>
-        </header>
-
-        <div class="person-card__rows">
-          <div class="row">
-            <div class="row__label">Birthdate</div>
-            <div class="row__value" data-field="birthdate">—</div>
-          </div>
-
-          <div class="row">
-            <div class="row__label">Age</div>
-            <div class="row__value" data-field="age">—</div>
-          </div>
-
-          <div class="row">
-            <div class="row__label">Passed</div>
-            <div class="row__value" data-field="passed">—</div>
-          </div>
-        </div>
-      </div>
-    </article>
-  </template>
-
-  <!-- Photo Modal / Lightbox -->
-<div id="photoModal" class="modal" hidden aria-hidden="true">
-  <div class="modal__backdrop" data-close="1"></div>
-
-  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="photoModalTitle">
-    <div class="modal__header">
-      <div id="photoModalTitle" class="modal__title">Photos</div>
-      <button id="photoModalClose" class="modal__close" type="button" aria-label="Close">✕</button>
-    </div>
-
-    <div class="modal__body">
-      <button id="photoPrev" class="modal__nav modal__nav--prev" type="button" aria-label="Previous photo">‹</button>
-
-      <div class="modal__stage">
-        <img id="photoModalImg" class="modal__img" alt="Photo" />
-        <div id="photoModalCounter" class="modal__counter"></div>
-      </div>
-
-      <button id="photoNext" class="modal__nav modal__nav--next" type="button" aria-label="Next photo">›</button>
-    </div>
-  </div>
-</div>
-
 
   <!-- Firebase SDKs (compat for simplest setup) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -148,6 +58,6 @@
 
   <!-- Your app scripts -->
   <script src="firebase.js"></script>
-  <script src="app.js" defer></script>
+  <script src="app.js"></script>
 </body>
 </html>
