@@ -561,7 +561,14 @@ function wirePhotoModalOnce() {
           avatarWrap.appendChild(dot);
         }
       }
+         // Open photo modal on avatar click (only if photos exist)
+        avatarWrap.style.cursor = photos.length ? "pointer" : "default";
+        avatarWrap.addEventListener("click", () => {
+        if (!photos.length) return;
+         openPhotoModal(r.name || "Photos", photos, 0);
+});
 
+      
       const topText = document.createElement("div");
       topText.className = "cardTopText";
 
@@ -755,6 +762,8 @@ function wirePhotoModalOnce() {
 
     wireLoginUI();
     hookUI();
+    wirePhotoModalOnce();
+
 
     await completeEmailLinkSignin();
 
