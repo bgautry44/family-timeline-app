@@ -578,6 +578,18 @@ function wirePhotoModalOnce() {
         img.loading = "lazy";
         avatarWrap.appendChild(img);
 
+        // Open modal on avatar click/tap
+       avatarWrap.style.cursor = photos.length ? "pointer" : "default";
+       avatarWrap.addEventListener("click", () => {
+       if (!photos.length) return;
+       openPhotoModal({
+       title: r.name || "Photos",
+       photos,
+       startIdx: 0
+       });
+       });
+
+
         if (photos.length > 1) {
           const dot = document.createElement("div");
           dot.className = "avatarDot";
@@ -800,6 +812,8 @@ function wirePhotoModalOnce() {
 
     wireLoginUI();
     hookUI();
+    wirePhotoModalOnce();
+
 
     await completeEmailLinkSignin();
 
