@@ -682,3 +682,4 @@
 
   bootstrap();
 })();
+Stable baseline: auth + Cousins layout + search/toggle/sort
