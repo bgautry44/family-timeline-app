@@ -318,6 +318,31 @@
     return snap2.exists ? snap2.data() : null;
   }
 
+  async function loadFamilyProfileOnce() {
+  if (!state.familyId) return;
+
+  const titleEl = $("appTitle");
+  const subtitleEl = $("appSubtitle");
+
+  try {
+    const ref = db.collection("families").doc(state.familyId);
+    const snap = await ref.get();
+
+    if (!snap.exists) return;
+
+    const data = snap.data() || {};
+    const familyName =
+      (data.familyName ?? data.name ?? data.title ?? "").toString().trim();
+    const description =
+      (data.description ?? data.subtitle ?? "").toString().trim();
+
+    if (titleEl && familyName) titleEl.textContent = familyName;
+    if (subtitleEl && description) subtitleEl.textContent = description;
+  } catch (err) {
+    console.warn("Could not load family profile:", err);
+  }
+}
+
   async function loadPeopleOnce() {
     if (!state.user) return;
 
@@ -669,9 +694,11 @@
       setUIAuthed(true, user.email || "");
 
       try {
-        await loadPeopleOnce();
-        render();
-      } catch (err) {
+       await loadFamilyProfileOnce();   // <-- ADD THIS
+       await loadPeopleOnce();
+       render();
+     } catch (err) {
+
         console.error(err);
         alert(`Error loading data: ${err.code || "unknown"}\n${err.message || err}`);
         state.data = [];
