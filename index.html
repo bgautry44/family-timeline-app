@@ -39,6 +39,25 @@
         <button id="sendLinkBtn" type="submit">Send login link</button>
       </form>
 
+      <!-- App controls (shown after login) -->
+<div id="appControls" class="controls" hidden>
+  <input
+    id="search"
+    type="search"
+    placeholder="Search by name…"
+    autocomplete="off"
+    inputmode="search"
+  />
+
+  <label class="toggle" title="Show deceased">
+    <input id="showDeceased" type="checkbox" checked />
+    <span>Show deceased</span>
+  </label>
+
+  <button id="sortBtn" type="button">Sort: Oldest → Youngest</button>
+</div>
+
+
       <div class="app-header__meta">
         <div id="birthdayLine" class="birthdayLine" hidden></div>
 
