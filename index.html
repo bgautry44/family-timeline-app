@@ -116,6 +116,30 @@
     </article>
   </template>
 
+  <!-- Photo Modal / Lightbox -->
+<div id="photoModal" class="modal" hidden aria-hidden="true">
+  <div class="modal__backdrop" data-close="1"></div>
+
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="photoModalTitle">
+    <div class="modal__header">
+      <div id="photoModalTitle" class="modal__title">Photos</div>
+      <button id="photoModalClose" class="modal__close" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal__body">
+      <button id="photoPrev" class="modal__nav modal__nav--prev" type="button" aria-label="Previous photo">‹</button>
+
+      <div class="modal__stage">
+        <img id="photoModalImg" class="modal__img" alt="Photo" />
+        <div id="photoModalCounter" class="modal__counter"></div>
+      </div>
+
+      <button id="photoNext" class="modal__nav modal__nav--next" type="button" aria-label="Next photo">›</button>
+    </div>
+  </div>
+</div>
+
+
   <!-- Firebase SDKs (compat for simplest setup) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
