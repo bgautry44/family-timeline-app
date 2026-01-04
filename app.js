@@ -560,12 +560,15 @@
     }
   }
 
-  function setUIAuthed(isAuthed, emailText) {
+    function setUIAuthed(isAuthed, emailText) {
     const whoami = $("whoami");
     const logoutBtn = $("logoutBtn");
     const loginForm = $("loginForm");
+    const appControls = $("appControls");
 
     if (loginForm) loginForm.style.display = isAuthed ? "none" : "";
+    if (appControls) appControls.hidden = !isAuthed;
+
     if (whoami) whoami.textContent = isAuthed ? (emailText || "Signed in") : "Not signed in";
 
     if (logoutBtn) {
@@ -573,6 +576,7 @@
       else logoutBtn.style.display = isAuthed ? "" : "none";
     }
   }
+
 
   function wireLoginUI() {
     const form = $("loginForm");
