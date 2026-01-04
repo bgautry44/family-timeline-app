@@ -293,6 +293,108 @@
     });
   }
 
+    // ============================
+// Photo Modal / Lightbox
+// ============================
+const modalState = { open:false, photos:[], idx:0, title:"" };
+
+function openPhotoModal(title, photos, startIdx) {
+  const modal = $("photoModal");
+  const img = $("photoModalImg");
+  const titleEl = $("photoModalTitle");
+  const counter = $("photoModalCounter");
+
+  if (!modal || !img) return;
+
+  modalState.open = true;
+  modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
+  modalState.idx = Math.max(0, Math.min(Number(startIdx || 0), modalState.photos.length - 1));
+  modalState.title = title || "Photos";
+
+  if (titleEl) titleEl.textContent = modalState.title;
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+
+  renderModalPhoto();
+}
+
+function closePhotoModal() {
+  const modal = $("photoModal");
+  if (!modal) return;
+
+  modalState.open = false;
+  modalState.photos = [];
+  modalState.idx = 0;
+  modalState.title = "";
+
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function renderModalPhoto() {
+  const img = $("photoModalImg");
+  const counter = $("photoModalCounter");
+  const prevBtn = $("photoPrev");
+  const nextBtn = $("photoNext");
+
+  const total = modalState.photos.length;
+  if (!img || !total) return;
+
+  const src = modalState.photos[modalState.idx];
+
+  img.classList.remove("fadeIn");
+  void img.offsetWidth;
+  img.src = src;
+  img.classList.add("fadeIn");
+
+  if (counter) counter.textContent = `${modalState.idx + 1} / ${total}`;
+  if (prevBtn) prevBtn.disabled = total <= 1;
+  if (nextBtn) nextBtn.disabled = total <= 1;
+}
+
+function modalPrev() {
+  const total = modalState.photos.length;
+  if (total <= 1) return;
+  modalState.idx = (modalState.idx - 1 + total) % total;
+  renderModalPhoto();
+}
+
+function modalNext() {
+  const total = modalState.photos.length;
+  if (total <= 1) return;
+  modalState.idx = (modalState.idx + 1) % total;
+  renderModalPhoto();
+}
+
+function wirePhotoModalOnce() {
+  const modal = $("photoModal");
+  if (!modal) return;
+  if (modal.dataset.wired === "1") return;
+  modal.dataset.wired = "1";
+
+  const backdrop = modal.querySelector(".modal__backdrop");
+  const closeBtn = $("photoModalClose");
+  const prevBtn = $("photoPrev");
+  const nextBtn = $("photoNext");
+
+  if (backdrop) backdrop.addEventListener("click", closePhotoModal);
+  if (closeBtn) closeBtn.addEventListener("click", closePhotoModal);
+  if (prevBtn) prevBtn.addEventListener("click", modalPrev);
+  if (nextBtn) nextBtn.addEventListener("click", modalNext);
+
+  document.addEventListener("keydown", (e) => {
+    if (!modalState.open) return;
+    if (e.key === "Escape") closePhotoModal();
+    if (e.key === "ArrowLeft") modalPrev();
+    if (e.key === "ArrowRight") modalNext();
+  });
+}
+
+  
+
   // ============================
   // Firestore loading
   // ============================
