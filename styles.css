@@ -318,3 +318,24 @@ h1{
 .birthdayLine span{
   white-space:nowrap;
 }
+/* Desktop-first enhancement: larger avatar on wider screens */
+@media (min-width: 900px){
+  .avatarWrap{
+    width:72px;
+    height:72px;
+  }
+  .avatar{
+    width:72px !important;
+    height:72px !important;
+  }
+  .avatar.placeholder{
+    width:72px;
+    height:72px;
+  }
+  .cardTop{
+    gap:14px;
+  }
+  .name{
+    font-size:17px;
+  }
+}
