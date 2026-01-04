@@ -287,113 +287,121 @@
 
     carouselTimers.set(imgEl, timer);
 
+    // Tap to advance (kept for avatar small carousel)
     imgEl.addEventListener("click", () => {
       idx = (idx + 1) % photos.length;
       setSrc();
     });
   }
 
-    // ============================
-// Photo Modal / Lightbox
-// ============================
-const modalState = { open:false, photos:[], idx:0, title:"" };
+  // ============================
+  // Photo Modal / Lightbox
+  // ============================
+  const modalState = { open: false, photos: [], idx: 0, title: "" };
 
-function openPhotoModal(title, photos, startIdx) {
-  const modal = $("photoModal");
-  const img = $("photoModalImg");
-  const titleEl = $("photoModalTitle");
-  const counter = $("photoModalCounter");
+  function openPhotoModal(title, photos, startIdx) {
+    const modal = $("photoModal");
+    const img = $("photoModalImg");
+    const titleEl = $("photoModalTitle");
+    const counter = $("photoModalCounter");
 
-  if (!modal || !img) return;
+    if (!modal || !img) return;
 
-  modalState.open = true;
-  modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
-  modalState.idx = Math.max(0, Math.min(Number(startIdx || 0), modalState.photos.length - 1));
-  modalState.title = title || "Photos";
+    modalState.open = true;
+    modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
+    modalState.idx = Math.max(0, Math.min(Number(startIdx || 0), modalState.photos.length - 1));
+    modalState.title = title || "Photos";
 
-  if (titleEl) titleEl.textContent = modalState.title;
+    if (titleEl) titleEl.textContent = modalState.title;
 
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
 
-  renderModalPhoto();
-}
+    renderModalPhoto();
+  }
 
-function closePhotoModal() {
-  const modal = $("photoModal");
-  if (!modal) return;
+  function closePhotoModal() {
+    const modal = $("photoModal");
+    if (!modal) return;
 
-  modalState.open = false;
-  modalState.photos = [];
-  modalState.idx = 0;
-  modalState.title = "";
+    modalState.open = false;
+    modalState.photos = [];
+    modalState.idx = 0;
+    modalState.title = "";
 
-  modal.hidden = true;
-  modal.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-}
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
 
-function renderModalPhoto() {
-  const img = $("photoModalImg");
-  const counter = $("photoModalCounter");
-  const prevBtn = $("photoPrev");
-  const nextBtn = $("photoNext");
+    // Clear src to prevent flash of previous image on next open
+    const img = $("photoModalImg");
+    if (img) img.removeAttribute("src");
+  }
 
-  const total = modalState.photos.length;
-  if (!img || !total) return;
+  function renderModalPhoto() {
+    const img = $("photoModalImg");
+    const counter = $("photoModalCounter");
+    const prevBtn = $("photoPrev");
+    const nextBtn = $("photoNext");
 
-  const src = modalState.photos[modalState.idx];
+    const total = modalState.photos.length;
+    if (!img || !total) return;
 
-  img.classList.remove("fadeIn");
-  void img.offsetWidth;
-  img.src = src;
-  img.classList.add("fadeIn");
+    const src = modalState.photos[modalState.idx];
 
-  if (counter) counter.textContent = `${modalState.idx + 1} / ${total}`;
-  if (prevBtn) prevBtn.disabled = total <= 1;
-  if (nextBtn) nextBtn.disabled = total <= 1;
-}
+    img.classList.remove("fadeIn");
+    void img.offsetWidth;
+    img.src = src;
+    img.classList.add("fadeIn");
 
-function modalPrev() {
-  const total = modalState.photos.length;
-  if (total <= 1) return;
-  modalState.idx = (modalState.idx - 1 + total) % total;
-  renderModalPhoto();
-}
+    if (counter) counter.textContent = `${modalState.idx + 1} / ${total}`;
+    if (prevBtn) prevBtn.disabled = total <= 1;
+    if (nextBtn) nextBtn.disabled = total <= 1;
+  }
 
-function modalNext() {
-  const total = modalState.photos.length;
-  if (total <= 1) return;
-  modalState.idx = (modalState.idx + 1) % total;
-  renderModalPhoto();
-}
+  function modalPrev() {
+    const total = modalState.photos.length;
+    if (total <= 1) return;
+    modalState.idx = (modalState.idx - 1 + total) % total;
+    renderModalPhoto();
+  }
 
-function wirePhotoModalOnce() {
-  const modal = $("photoModal");
-  if (!modal) return;
-  if (modal.dataset.wired === "1") return;
-  modal.dataset.wired = "1";
+  function modalNext() {
+    const total = modalState.photos.length;
+    if (total <= 1) return;
+    modalState.idx = (modalState.idx + 1) % total;
+    renderModalPhoto();
+  }
 
-  const backdrop = modal.querySelector(".modal__backdrop");
-  const closeBtn = $("photoModalClose");
-  const prevBtn = $("photoPrev");
-  const nextBtn = $("photoNext");
+  function wirePhotoModalOnce() {
+    const modal = $("photoModal");
+    if (!modal) return;
+    if (modal.dataset.wired === "1") return;
+    modal.dataset.wired = "1";
 
-  if (backdrop) backdrop.addEventListener("click", closePhotoModal);
-  if (closeBtn) closeBtn.addEventListener("click", closePhotoModal);
-  if (prevBtn) prevBtn.addEventListener("click", modalPrev);
-  if (nextBtn) nextBtn.addEventListener("click", modalNext);
+    const backdrop = modal.querySelector(".modal__backdrop");
+    const closeBtn = $("photoModalClose");
+    const prevBtn = $("photoPrev");
+    const nextBtn = $("photoNext");
 
-  document.addEventListener("keydown", (e) => {
-    if (!modalState.open) return;
-    if (e.key === "Escape") closePhotoModal();
-    if (e.key === "ArrowLeft") modalPrev();
-    if (e.key === "ArrowRight") modalNext();
-  });
-}
+    if (backdrop) backdrop.addEventListener("click", closePhotoModal);
+    if (closeBtn) closeBtn.addEventListener("click", closePhotoModal);
+    if (prevBtn) prevBtn.addEventListener("click", modalPrev);
+    if (nextBtn) nextBtn.addEventListener("click", modalNext);
 
-  
+    // Close if user clicks the outer modal container (extra guard)
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closePhotoModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (!modalState.open) return;
+      if (e.key === "Escape") closePhotoModal();
+      if (e.key === "ArrowLeft") modalPrev();
+      if (e.key === "ArrowRight") modalNext();
+    });
+  }
 
   // ============================
   // Firestore loading
@@ -519,7 +527,7 @@ function wirePhotoModalOnce() {
       const card = document.createElement("section");
       card.className = "card" + (isMemorial ? " memorial" : "") + (isBirthday ? " birthdayToday" : "");
 
-      // Header row (identical structure to Cousins)
+      // Header row
       const top = document.createElement("div");
       top.className = "cardTop";
 
@@ -561,14 +569,16 @@ function wirePhotoModalOnce() {
           avatarWrap.appendChild(dot);
         }
       }
-         // Open photo modal on avatar click (only if photos exist)
-        avatarWrap.style.cursor = photos.length ? "pointer" : "default";
-        avatarWrap.addEventListener("click", () => {
-        if (!photos.length) return;
-         openPhotoModal(r.name || "Photos", photos, 0);
-});
 
-      
+      // Open modal on avatar click (only if photos exist). Stop bubbling to img click.
+      avatarWrap.style.cursor = photos.length ? "pointer" : "default";
+      avatarWrap.addEventListener("click", (e) => {
+        if (!photos.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openPhotoModal(r.name || "Photos", photos, 0);
+      });
+
       const topText = document.createElement("div");
       topText.className = "cardTopText";
 
@@ -669,7 +679,7 @@ function wirePhotoModalOnce() {
     }
   }
 
-    function setUIAuthed(isAuthed, emailText) {
+  function setUIAuthed(isAuthed, emailText) {
     const whoami = $("whoami");
     const logoutBtn = $("logoutBtn");
     const loginForm = $("loginForm");
@@ -685,7 +695,6 @@ function wirePhotoModalOnce() {
       else logoutBtn.style.display = isAuthed ? "" : "none";
     }
   }
-
 
   function wireLoginUI() {
     const form = $("loginForm");
@@ -763,7 +772,6 @@ function wirePhotoModalOnce() {
     wireLoginUI();
     hookUI();
     wirePhotoModalOnce();
-
 
     await completeEmailLinkSignin();
 
