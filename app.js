@@ -293,6 +293,128 @@
     });
   }
 
+    // ============================
+// Photo Modal / Lightbox
+// ============================
+const modalState = {
+  open: false,
+  photos: [],
+  idx: 0,
+  title: ""
+};
+
+function modalEls() {
+  return {
+    modal: $("photoModal"),
+    backdrop: document.querySelector("#photoModal .modal__backdrop"),
+    dialog: document.querySelector("#photoModal .modal__dialog"),
+    img: $("photoModalImg"),
+    title: $("photoModalTitle"),
+    counter: $("photoModalCounter"),
+    btnClose: $("photoModalClose"),
+    btnPrev: $("photoPrev"),
+    btnNext: $("photoNext")
+  };
+}
+
+function openPhotoModal({ title, photos, startIdx = 0 }) {
+  const els = modalEls();
+  if (!els.modal || !els.img) return;
+
+  modalState.open = true;
+  modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
+  modalState.idx = Math.max(0, Math.min(startIdx, modalState.photos.length - 1));
+  modalState.title = title || "Photos";
+
+  els.title.textContent = modalState.title;
+  els.modal.hidden = false;
+  els.modal.setAttribute("aria-hidden", "false");
+
+  // Lock background scroll
+  document.body.style.overflow = "hidden";
+
+  renderModalPhoto();
+}
+
+function closePhotoModal() {
+  const els = modalEls();
+  if (!els.modal) return;
+
+  modalState.open = false;
+  modalState.photos = [];
+  modalState.idx = 0;
+  modalState.title = "";
+
+  els.modal.hidden = true;
+  els.modal.setAttribute("aria-hidden", "true");
+
+  // Restore scroll
+  document.body.style.overflow = "";
+}
+
+function renderModalPhoto() {
+  const els = modalEls();
+  if (!els.img) return;
+
+  const total = modalState.photos.length;
+  if (!total) {
+    els.img.removeAttribute("src");
+    els.counter.textContent = "";
+    return;
+  }
+
+  const src = modalState.photos[modalState.idx];
+  els.img.classList.remove("fadeIn");
+  void els.img.offsetWidth;
+  els.img.src = src;
+  els.img.classList.add("fadeIn");
+
+  if (els.counter) els.counter.textContent = `${modalState.idx + 1} / ${total}`;
+
+  if (els.btnPrev) els.btnPrev.disabled = total <= 1;
+  if (els.btnNext) els.btnNext.disabled = total <= 1;
+}
+
+function modalPrev() {
+  const total = modalState.photos.length;
+  if (total <= 1) return;
+  modalState.idx = (modalState.idx - 1 + total) % total;
+  renderModalPhoto();
+}
+
+function modalNext() {
+  const total = modalState.photos.length;
+  if (total <= 1) return;
+  modalState.idx = (modalState.idx + 1) % total;
+  renderModalPhoto();
+}
+
+function wirePhotoModalOnce() {
+  const els = modalEls();
+  if (!els.modal) return;
+
+  // Prevent double-wiring
+  if (els.modal.dataset.wired === "1") return;
+  els.modal.dataset.wired = "1";
+
+  // Close behaviors
+  if (els.btnClose) els.btnClose.addEventListener("click", closePhotoModal);
+  if (els.backdrop) els.backdrop.addEventListener("click", closePhotoModal);
+
+  // Nav
+  if (els.btnPrev) els.btnPrev.addEventListener("click", modalPrev);
+  if (els.btnNext) els.btnNext.addEventListener("click", modalNext);
+
+  // Keyboard
+  document.addEventListener("keydown", (e) => {
+    if (!modalState.open) return;
+    if (e.key === "Escape") closePhotoModal();
+    if (e.key === "ArrowLeft") modalPrev();
+    if (e.key === "ArrowRight") modalNext();
+  });
+}
+
+
   // ============================
   // Firestore loading
   // ============================
