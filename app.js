@@ -1,6 +1,23 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
+  // ========= On-screen status (uses the existing #whoami element) =========
+  function setStatus(msg) {
+    const who = $("whoami");
+    if (who) who.textContent = msg;
+    console.log("[FamilyTimeline]", msg);
+  }
+
+  // ========= Surface silent failures =========
+  window.addEventListener("error", (e) => {
+    setStatus("JS error: " + (e?.message || "unknown"));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const err = e?.reason;
+    setStatus("Promise error: " + (err?.code || err?.message || String(err)));
+  });
+
+  // ========= Firebase (compat) =========
   // ============================
   // CONFIG (SET THIS)
   // ============================
@@ -13,16 +30,24 @@
   const db = window.db ? window.db : (window.firebase ? window.firebase.firestore() : null);
   const storage = window.storage ? window.storage : (window.firebase ? window.firebase.storage() : null);
 
+  if (!auth) {
+    setStatus("Firebase Auth not found. Check firebase.js + SDK script tags.");
+    return;
   if (!auth || !db || !storage) {
     console.error("Firebase auth/db/storage not found. Ensure compat scripts + firebase.initializeApp() ran (firebase.js).");
   }
 
+  // Email link sign-in settings (must be an authorized domain)
   // Email link sign-in settings
   const actionCodeSettings = {
     url: window.location.origin + window.location.pathname,
     handleCodeInApp: true
   };
 
+  // ========= UI helpers =========
+  function setUIAuthed(isAuthed, emailText) {
+    const loginForm = $("loginForm");
+    const logoutBtn = $("logoutBtn");
   // ============================
   // App state
   // ============================
@@ -35,6 +60,8 @@
     familyId: FAMILY_ID
   };
 
+    if (loginForm) loginForm.style.display = isAuthed ? "none" : "";
+    if (logoutBtn) logoutBtn.hidden = !isAuthed;
   // ============================
   // Helpers
   // ============================
@@ -260,6 +287,7 @@
     stopCarouselFor(imgEl);
     if (!imgEl || !Array.isArray(photos) || photos.length === 0) return;
 
+    setStatus(isAuthed ? ("Signed in: " + (emailText || "")) : "Not signed in");
     let idx = 0;
 
     const setSrc = () => {
@@ -293,128 +321,6 @@
     });
   }
 
-    // ============================
-// Photo Modal / Lightbox
-// ============================
-const modalState = {
-  open: false,
-  photos: [],
-  idx: 0,
-  title: ""
-};
-
-function modalEls() {
-  return {
-    modal: $("photoModal"),
-    backdrop: document.querySelector("#photoModal .modal__backdrop"),
-    dialog: document.querySelector("#photoModal .modal__dialog"),
-    img: $("photoModalImg"),
-    title: $("photoModalTitle"),
-    counter: $("photoModalCounter"),
-    btnClose: $("photoModalClose"),
-    btnPrev: $("photoPrev"),
-    btnNext: $("photoNext")
-  };
-}
-
-function openPhotoModal({ title, photos, startIdx = 0 }) {
-  const els = modalEls();
-  if (!els.modal || !els.img) return;
-
-  modalState.open = true;
-  modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
-  modalState.idx = Math.max(0, Math.min(startIdx, modalState.photos.length - 1));
-  modalState.title = title || "Photos";
-
-  els.title.textContent = modalState.title;
-  els.modal.hidden = false;
-  els.modal.setAttribute("aria-hidden", "false");
-
-  // Lock background scroll
-  document.body.style.overflow = "hidden";
-
-  renderModalPhoto();
-}
-
-function closePhotoModal() {
-  const els = modalEls();
-  if (!els.modal) return;
-
-  modalState.open = false;
-  modalState.photos = [];
-  modalState.idx = 0;
-  modalState.title = "";
-
-  els.modal.hidden = true;
-  els.modal.setAttribute("aria-hidden", "true");
-
-  // Restore scroll
-  document.body.style.overflow = "";
-}
-
-function renderModalPhoto() {
-  const els = modalEls();
-  if (!els.img) return;
-
-  const total = modalState.photos.length;
-  if (!total) {
-    els.img.removeAttribute("src");
-    els.counter.textContent = "";
-    return;
-  }
-
-  const src = modalState.photos[modalState.idx];
-  els.img.classList.remove("fadeIn");
-  void els.img.offsetWidth;
-  els.img.src = src;
-  els.img.classList.add("fadeIn");
-
-  if (els.counter) els.counter.textContent = `${modalState.idx + 1} / ${total}`;
-
-  if (els.btnPrev) els.btnPrev.disabled = total <= 1;
-  if (els.btnNext) els.btnNext.disabled = total <= 1;
-}
-
-function modalPrev() {
-  const total = modalState.photos.length;
-  if (total <= 1) return;
-  modalState.idx = (modalState.idx - 1 + total) % total;
-  renderModalPhoto();
-}
-
-function modalNext() {
-  const total = modalState.photos.length;
-  if (total <= 1) return;
-  modalState.idx = (modalState.idx + 1) % total;
-  renderModalPhoto();
-}
-
-function wirePhotoModalOnce() {
-  const els = modalEls();
-  if (!els.modal) return;
-
-  // Prevent double-wiring
-  if (els.modal.dataset.wired === "1") return;
-  els.modal.dataset.wired = "1";
-
-  // Close behaviors
-  if (els.btnClose) els.btnClose.addEventListener("click", closePhotoModal);
-  if (els.backdrop) els.backdrop.addEventListener("click", closePhotoModal);
-
-  // Nav
-  if (els.btnPrev) els.btnPrev.addEventListener("click", modalPrev);
-  if (els.btnNext) els.btnNext.addEventListener("click", modalNext);
-
-  // Keyboard
-  document.addEventListener("keydown", (e) => {
-    if (!modalState.open) return;
-    if (e.key === "Escape") closePhotoModal();
-    if (e.key === "ArrowLeft") modalPrev();
-    if (e.key === "ArrowRight") modalNext();
-  });
-}
-
-
   // ============================
   // Firestore loading
   // ============================
@@ -440,31 +346,7 @@ function wirePhotoModalOnce() {
     return snap2.exists ? snap2.data() : null;
   }
 
-  async function loadFamilyProfileOnce() {
-  if (!state.familyId) return;
-
-  const titleEl = $("appTitle");
-  const subtitleEl = $("appSubtitle");
-
-  try {
-    const ref = db.collection("families").doc(state.familyId);
-    const snap = await ref.get();
-
-    if (!snap.exists) return;
-
-    const data = snap.data() || {};
-    const familyName =
-      (data.familyName ?? data.name ?? data.title ?? "").toString().trim();
-    const description =
-      (data.description ?? data.subtitle ?? "").toString().trim();
-
-    if (titleEl && familyName) titleEl.textContent = familyName;
-    if (subtitleEl && description) subtitleEl.textContent = description;
-  } catch (err) {
-    console.warn("Could not load family profile:", err);
-  }
-}
-
+  // ========= Complete email-link sign-in =========
   async function loadPeopleOnce() {
     if (!state.user) return;
 
@@ -577,18 +459,6 @@ function wirePhotoModalOnce() {
         img.alt = escapeHtml(r.name || "Photo");
         img.loading = "lazy";
         avatarWrap.appendChild(img);
-
-        // Open modal on avatar click/tap
-       avatarWrap.style.cursor = photos.length ? "pointer" : "default";
-       avatarWrap.addEventListener("click", () => {
-       if (!photos.length) return;
-       openPhotoModal({
-       title: r.name || "Photos",
-       photos,
-       startIdx: 0
-       });
-       });
-
 
         if (photos.length > 1) {
           const dot = document.createElement("div");
@@ -703,12 +573,15 @@ function wirePhotoModalOnce() {
   async function completeEmailLinkSignin() {
     const href = window.location.href;
 
+    if (!auth.isSignInWithEmailLink(href)) return;
     if (!auth || !auth.isSignInWithEmailLink || !auth.isSignInWithEmailLink(href)) return;
 
     const storedEmail = window.localStorage.getItem("emailForSignIn");
     const email = storedEmail || window.prompt("Confirm your email to finish sign-in:");
     if (!email) return;
 
+    setStatus("Completing sign-in…");
+    await auth.signInWithEmailLink(email, href);
     try {
       await auth.signInWithEmailLink(email, href);
       window.localStorage.removeItem("emailForSignIn");
@@ -719,15 +592,15 @@ function wirePhotoModalOnce() {
     }
   }
 
-    function setUIAuthed(isAuthed, emailText) {
+    window.localStorage.removeItem("emailForSignIn");
+    window.history.replaceState({}, document.title, window.location.pathname);
+    setStatus("Sign-in complete.");
+  function setUIAuthed(isAuthed, emailText) {
     const whoami = $("whoami");
     const logoutBtn = $("logoutBtn");
     const loginForm = $("loginForm");
-    const appControls = $("appControls");
 
     if (loginForm) loginForm.style.display = isAuthed ? "none" : "";
-    if (appControls) appControls.hidden = !isAuthed;
-
     if (whoami) whoami.textContent = isAuthed ? (emailText || "Signed in") : "Not signed in";
 
     if (logoutBtn) {
@@ -736,23 +609,59 @@ function wirePhotoModalOnce() {
     }
   }
 
-
+  // ========= Wire login form =========
   function wireLoginUI() {
     const form = $("loginForm");
     const emailEl = $("loginEmail");
     const sendBtn = $("sendLinkBtn");
     const logoutBtn = $("logoutBtn");
 
+    if (!form || !emailEl || !sendBtn) {
+      setStatus("Missing login DOM elements (#loginForm/#loginEmail/#sendLinkBtn).");
+      return;
+    }
+
+    setStatus("Ready. Enter email and click Send login link.");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
     if (form && emailEl && sendBtn) {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
+      const email = (emailEl.value || "").trim();
+      if (!email) {
+        setStatus("Enter an email address.");
+        return;
+      }
         const email = (emailEl.value || "").trim();
         if (!email) return;
 
+      sendBtn.disabled = true;
+      const oldText = sendBtn.textContent;
+      sendBtn.textContent = "Sending…";
         sendBtn.disabled = true;
         sendBtn.textContent = "Sending…";
 
+      try {
+        setStatus("Sending login link to " + email + "…");
+        await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+        window.localStorage.setItem("emailForSignIn", email);
+        setStatus("Link sent. Check inbox/spam.");
+        alert("Login link sent. Open your email on this device and tap the link.");
+      } catch (err) {
+        console.error("sendSignInLinkToEmail failed:", err);
+        setStatus("Send failed: " + (err?.code || err?.message || "unknown"));
+        alert(
+          "Could not send link.\n\n" +
+          "Code: " + (err?.code || "unknown") + "\n" +
+          (err?.message || "")
+        );
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = oldText || "Send login link";
+      }
+    });
         try {
           await auth.sendSignInLinkToEmail(email, actionCodeSettings);
           window.localStorage.setItem("emailForSignIn", email);
@@ -769,6 +678,11 @@ function wirePhotoModalOnce() {
 
     if (logoutBtn) {
       logoutBtn.addEventListener("click", async () => {
+        try {
+          await auth.signOut();
+        } catch (e) {
+          console.error(e);
+        }
         try { await auth.signOut(); } catch (e) { console.error(e); }
       });
     }
@@ -804,6 +718,7 @@ function wirePhotoModalOnce() {
     }
   }
 
+  // ========= Bootstrap =========
   // ============================
   // Bootstrap
   // ============================
@@ -812,14 +727,20 @@ function wirePhotoModalOnce() {
 
     wireLoginUI();
     hookUI();
-    wirePhotoModalOnce();
 
-
+    // If arriving from an email link, finish sign-in
+    try {
+      await completeEmailLinkSignin();
+    } catch (e) {
+      console.error(e);
+      setStatus("Sign-in completion failed: " + (e?.code || e?.message || "unknown"));
+    }
     await completeEmailLinkSignin();
 
     auth.onAuthStateChanged(async (user) => {
       state.user = user || null;
 
+    auth.onAuthStateChanged((user) => {
       if (!user) {
         state.data = [];
         setUIAuthed(false, "");
@@ -830,11 +751,9 @@ function wirePhotoModalOnce() {
       setUIAuthed(true, user.email || "");
 
       try {
-       await loadFamilyProfileOnce();   // <-- ADD THIS
-       await loadPeopleOnce();
-       render();
-     } catch (err) {
-
+        await loadPeopleOnce();
+        render();
+      } catch (err) {
         console.error(err);
         alert(`Error loading data: ${err.code || "unknown"}\n${err.message || err}`);
         state.data = [];
@@ -842,7 +761,3 @@ function wirePhotoModalOnce() {
       }
     });
   }
-
-  bootstrap();
-})();
-Stable baseline: auth + Cousins layout + search/toggle/sort
