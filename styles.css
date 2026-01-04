@@ -339,3 +339,134 @@ h1{
     font-size:17px;
   }
 }
+
+/* ============================
+   Photo Modal / Lightbox
+============================ */
+.modal[hidden]{ display:none; }
+
+.modal{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+}
+
+.modal__backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(3px);
+}
+
+.modal__dialog{
+  position:relative;
+  width:min(980px, 94vw);
+  max-height: 88vh;
+  margin: 6vh auto;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background: linear-gradient(180deg, rgba(18,24,38,.96), rgba(18,24,38,.86));
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+
+.modal__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+
+.modal__title{
+  font-weight:700;
+  font-size:14px;
+  color: var(--text);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.modal__close{
+  border:1px solid var(--border);
+  background:#0e1422;
+  color: var(--text);
+  border-radius:10px;
+  padding:8px 10px;
+  cursor:pointer;
+}
+
+.modal__body{
+  display:grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items:center;
+  gap:10px;
+  padding:12px;
+}
+
+.modal__stage{
+  position:relative;
+  height: calc(88vh - 120px);
+  min-height: 320px;
+  border-radius:12px;
+  background: rgba(10,14,20,.55);
+  border:1px solid rgba(255,255,255,0.08);
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.modal__img{
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display:block;
+}
+
+.modal__counter{
+  position:absolute;
+  right:10px;
+  bottom:10px;
+  padding:6px 10px;
+  font-size:12px;
+  color: var(--muted);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:999px;
+  background: rgba(10,14,20,.70);
+}
+
+.modal__nav{
+  width:44px;
+  height:44px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:#0e1422;
+  color: var(--text);
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.modal__nav:active{ transform: translateY(1px); }
+
+@media (max-width: 520px){
+  .modal__dialog{
+    width: 96vw;
+    margin: 2vh auto;
+    max-height: 94vh;
+  }
+  .modal__body{
+    grid-template-columns: 40px 1fr 40px;
+    padding:10px;
+  }
+  .modal__stage{
+    height: calc(94vh - 120px);
+    min-height: 300px;
+  }
+}
+
