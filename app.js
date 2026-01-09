@@ -276,11 +276,23 @@
       imgEl.classList.add("fadeIn");
     };
 
+    let consecutiveErrors = 0;
+
     imgEl.onerror = () => {
-      if (photos.length <= 1) return;
-      idx = (idx + 1) % photos.length;
-      setSrc();
-    };
+      consecutiveErrors++;
+
+  // If we have failed at least once per photo, stop trying
+  if (consecutiveErrors >= photos.length) {
+    stopCarouselFor(imgEl);
+    // Optional: clear src so it falls back visually (or leave as-is)
+    // imgEl.removeAttribute("src");
+    return;
+  }
+
+  idx = (idx + 1) % photos.length;
+  setSrc();
+};
+
 
     setSrc();
 
@@ -290,6 +302,8 @@
     const timer = setInterval(() => {
       idx = (idx + 1) % photos.length;
       setSrc();
+      consecutiveErrors = 0;
+
     }, tickMs);
 
     carouselTimers.set(imgEl, timer);
