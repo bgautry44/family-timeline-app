@@ -295,7 +295,7 @@
   }
 
   // ============================
-  // Photo Modal / Lightbox
+  // Photo Modal / Lightbox (with swipe)
   // ============================
   const modalState = { open: false, photos: [], idx: 0, title: "" };
 
@@ -303,7 +303,6 @@
     const modal = $("photoModal");
     const img = $("photoModalImg");
     const titleEl = $("photoModalTitle");
-    const counter = $("photoModalCounter");
 
     if (!modal || !img) return;
 
@@ -346,7 +345,14 @@
     const nextBtn = $("photoNext");
 
     const total = modalState.photos.length;
-    if (!img || !total) return;
+    if (!img) return;
+
+    if (!total) {
+      if (counter) counter.textContent = "";
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      return;
+    }
 
     const src = modalState.photos[modalState.idx];
 
@@ -374,6 +380,79 @@
     renderModalPhoto();
   }
 
+  function wireModalSwipe(stageEl) {
+    // Conservative swipe detection (prevents accidental triggers)
+    const thresholdX = 40;   // minimum horizontal movement
+    const restraintY = 60;   // max vertical movement allowed
+    const minVelocity = 0.10; // px/ms (very forgiving)
+
+    let tracking = false;
+    let startX = 0;
+    let startY = 0;
+    let startT = 0;
+
+    const onStart = (e) => {
+      if (!modalState.open) return;
+      if (modalState.photos.length <= 1) return;
+
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+
+      tracking = true;
+      startX = t.clientX;
+      startY = t.clientY;
+      startT = Date.now();
+    };
+
+    const onMove = (e) => {
+      if (!tracking) return;
+      // If user is clearly scrolling vertically, stop tracking
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+
+      if (Math.abs(dy) > restraintY && Math.abs(dy) > Math.abs(dx)) {
+        tracking = false;
+      }
+    };
+
+    const onEnd = (e) => {
+      if (!tracking) return;
+      tracking = false;
+
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      if (!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const dt = Math.max(1, Date.now() - startT);
+      const vx = Math.abs(dx) / dt;
+
+      // Must be mostly horizontal
+      if (Math.abs(dy) > restraintY) return;
+
+      if (Math.abs(dx) >= thresholdX && vx >= minVelocity) {
+        // Prevent click ghosting
+        if (e.cancelable) e.preventDefault();
+
+        if (dx < 0) modalNext(); // swipe left -> next
+        else modalPrev();        // swipe right -> prev
+      }
+    };
+
+    // Avoid double wiring
+    if (stageEl.dataset.swipeWired === "1") return;
+    stageEl.dataset.swipeWired = "1";
+
+    // Important: use passive:false so preventDefault is allowed when needed
+    stageEl.addEventListener("touchstart", onStart, { passive: true });
+    stageEl.addEventListener("touchmove", onMove, { passive: true });
+    stageEl.addEventListener("touchend", onEnd, { passive: false });
+    stageEl.addEventListener("touchcancel", () => { tracking = false; }, { passive: true });
+  }
+
   function wirePhotoModalOnce() {
     const modal = $("photoModal");
     if (!modal) return;
@@ -381,6 +460,9 @@
     modal.dataset.wired = "1";
 
     const backdrop = modal.querySelector(".modal__backdrop");
+    const dialog = modal.querySelector(".modal__dialog");
+    const stage = modal.querySelector(".modal__stage");
+
     const closeBtn = $("photoModalClose");
     const prevBtn = $("photoPrev");
     const nextBtn = $("photoNext");
@@ -390,10 +472,21 @@
     if (prevBtn) prevBtn.addEventListener("click", modalPrev);
     if (nextBtn) nextBtn.addEventListener("click", modalNext);
 
-    // Close if user clicks the outer modal container (extra guard)
+    // Close if user clicks outside dialog (extra guard)
     modal.addEventListener("click", (e) => {
       if (e.target === modal) closePhotoModal();
     });
+
+    // Also close if clicking backdrop area (covers cases where modal click target differs)
+    if (dialog) {
+      dialog.addEventListener("click", (e) => {
+        // Do nothing; prevents accidental bubbling to modal container
+        e.stopPropagation();
+      });
+    }
+
+    // Swipe on the stage (image area)
+    if (stage) wireModalSwipe(stage);
 
     document.addEventListener("keydown", (e) => {
       if (!modalState.open) return;
