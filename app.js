@@ -181,16 +181,23 @@
     }
     return peopleArray;
   }
-
   function photoList(r) {
-    if (Array.isArray(r?._photoUrls) && r._photoUrls.length) return r._photoUrls;
-
-    const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
-    if (arr && arr.length) return arr.map(x => String(x).trim()).filter(Boolean);
-
-    const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
-    return single ? [single] : [];
+  // Prefer resolved download URLs
+  if (Array.isArray(r?._photoUrls) && r._photoUrls.length) {
+    return r._photoUrls.filter(u => /^https?:\/\//i.test(u));
   }
+
+  // If not resolved, DO NOT return raw storage paths (they will 404 as relative URLs)
+  const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
+  const urls = (arr || []).map(x => String(x).trim()).filter(Boolean).filter(u => /^https?:\/\//i.test(u));
+
+  const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
+  if (single && /^https?:\/\//i.test(single)) urls.unshift(single);
+
+  return urls;
+}
+
+ 
 
   // ============================
   // Data computation
