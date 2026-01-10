@@ -41,7 +41,7 @@
   function normalize(s) {
     return (s || "").toString().toLowerCase().trim();
   }
-
+ 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (s) => ({
       "&": "&amp;",
