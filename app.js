@@ -148,32 +148,28 @@
   }
 
   // ============================
-  // Contact info (NEW, stability-first)
+  // Contact info (NEW, fail-safe)
   // ============================
   function normalizeEmail(raw) {
     const s = String(raw || "").trim();
     if (!s) return "";
-    // Very light validation: contains one "@" and at least one dot after it (avoid blocking legitimate but uncommon emails)
+    // Keep permissive; only block obvious bad strings that would break mailto UX
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     return ok ? s : "";
   }
 
   // Create tel: href from a phone string, preserving leading "+" if present.
-  // Returns empty string if it cannot form a reasonable dial string.
   function phoneToTelHref(raw) {
     const s = String(raw || "").trim();
     if (!s) return "";
     const hasPlus = /^\s*\+/.test(s);
     const digits = s.replace(/[^\d]/g, "");
     if (!digits) return "";
-    const dial = (hasPlus ? "+" : "") + digits;
-    // Guardrail: too short is likely junk; still keep permissive for extensions etc.
     if (digits.length < 7) return "";
-    return "tel:" + dial;
+    return "tel:" + ((hasPlus ? "+" : "") + digits);
   }
 
   function fmtPhoneDisplay(raw) {
-    // Display as user stored (trimmed), but don’t render if empty
     const s = String(raw || "").trim();
     return s || "";
   }
@@ -270,102 +266,4 @@
     const ref = passedEffective ?? today;
     const ageObj = birth ? diffYMD(birth, ref) : null;
 
-    const isBirthdayToday = !!(birth && !passedEffective && sameMonthDay(birth, today));
-    const wouldHaveTurned = (birth && passedEffective && sameMonthDay(birth, today))
-      ? (today.getFullYear() - birth.getFullYear())
-      : null;
-
-    const nextBirthday = birth ? nextBirthdayDate(birth, today) : null;
-
-    // NEW: contact fields (optional)
-    const email = normalizeEmail(r?.email);
-    const phoneRaw = fmtPhoneDisplay(r?.phone);
-    const phoneHref = phoneToTelHref(phoneRaw);
-
-    return {
-      ...r,
-      name: (r?.name ?? "").toString(),
-      tribute: (r?.tribute ?? "").toString(),
-      _birth: birth,
-      _passed: passedEffective,
-      ageText: birth ? fmtYMD(ageObj) : "—",
-      status: passedEffective ? "deceased" : "alive",
-      _photos: photoList(r),
-      isBirthdayToday,
-      nextBirthday,
-      wouldHaveTurned,
-
-      // NEW: computed contact info
-      _email: email,
-      _phoneDisplay: phoneRaw,
-      _phoneHref: phoneHref
-    };
-  }
-
-  function filterSort(rows) {
-    let out = Array.isArray(rows) ? rows : [];
-
-    if (!state.showDeceased) out = out.filter(r => r.status !== "deceased");
-
-    const q = normalize(state.q);
-    if (q) out = out.filter(r => normalize(r.name).includes(q));
-
-    out = out.slice().sort((a, b) => {
-      const aT = a._birth ? a._birth.getTime() : Number.POSITIVE_INFINITY;
-      const bT = b._birth ? b._birth.getTime() : Number.POSITIVE_INFINITY;
-      if (aT !== bT) return state.sortOldestFirst ? (aT - bT) : (bT - aT);
-      return (a.name ?? "").localeCompare(b.name ?? "");
-    });
-
-    return out;
-  }
-
-  // ============================
-  // Carousel engine (hardened)
-  // ============================
-  const carouselTimers = new Map();
-
-  function stopCarouselFor(imgEl) {
-    const t = carouselTimers.get(imgEl);
-    if (t) clearInterval(t);
-    carouselTimers.delete(imgEl);
-
-    // Remove old click handler if present (prevents handler stacking across re-renders)
-    if (imgEl && imgEl._carouselClickHandler) {
-      imgEl.removeEventListener("click", imgEl._carouselClickHandler);
-      delete imgEl._carouselClickHandler;
-    }
-
-    // Remove handlers
-    if (imgEl) {
-      imgEl.onerror = null;
-      imgEl.onload = null;
-    }
-  }
-
-  function startCarousel(imgEl, photos) {
-    stopCarouselFor(imgEl);
-    if (!imgEl || !Array.isArray(photos) || photos.length === 0) return;
-
-    // Harden: only allow http(s) URLs in carousel
-    const safePhotos = photos.filter(isHttpUrl);
-    if (safePhotos.length === 0) {
-      // No safe images; do not attempt to load
-      return;
-    }
-
-    let idx = 0;
-    let consecutiveErrors = 0;
-
-    const setSrc = () => {
-      imgEl.classList.remove("fadeIn");
-      void imgEl.offsetWidth;
-
-      imgEl.src = safePhotos[idx];
-
-      imgEl.classList.add("fadeIn");
-    };
-
-    imgEl.onload = () => {
-      // Reset error counter on any successful load
-      consecut
+    const isBirthdayToday = !!(birth && !passedEffective && s
