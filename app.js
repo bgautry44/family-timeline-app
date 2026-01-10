@@ -52,6 +52,19 @@
     }[s]));
   }
 
+  // Harden: sanitize any string inputs that may have accidental quotes/spaces
+  function cleanPath(s) {
+    return String(s || "")
+      .trim()
+      .replace(/^\uFEFF/, "")       // strip BOM if present
+      .replace(/^"+|"+$/g, "")      // strip wrapping double quotes
+      .replace(/^'+|'+$/g, "");     // strip wrapping single quotes
+  }
+
+  function isHttpUrl(s) {
+    return /^https?:\/\//i.test(String(s || "").trim());
+  }
+
   function localDateFromYMD(y, m, d) {
     const dt = new Date(Number(y), Number(m) - 1, Number(d));
     return isNaN(dt.getTime()) ? null : dt;
@@ -135,27 +148,42 @@
   }
 
   // ============================
-  // Storage photo URL resolving
+  // Storage photo URL resolving (hardened)
   // ============================
-  const photoUrlCache = new Map();
+  const photoUrlCache = new Map(); // key: cleaned path, value: downloadUrl (or null)
 
   function normalizePhotoPaths(r) {
     const list = [];
+
     if (Array.isArray(r?.photos)) list.push(...r.photos);
     else if (typeof r?.photos === "string" && r.photos.trim()) list.push(r.photos.trim());
+
     if (typeof r?.photo === "string" && r.photo.trim()) list.push(r.photo.trim());
-    return list.map(x => (x == null ? "" : String(x).trim())).filter(Boolean);
+
+    return list
+      .map(cleanPath)
+      .filter(Boolean);
   }
 
-  async function getDownloadUrlForPath(storagePath) {
+  async function getDownloadUrlForPath(storagePathRaw) {
+    const storagePath = cleanPath(storagePathRaw);
     if (!storagePath) return null;
-    if (/^https?:\/\//i.test(storagePath)) return storagePath;
+
+    // If already a URL, use as-is
+    if (isHttpUrl(storagePath)) return storagePath;
 
     if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
 
-    const url = await storage.ref(storagePath).getDownloadURL();
-    photoUrlCache.set(storagePath, url);
-    return url;
+    try {
+      const url = await storage.ref(storagePath).getDownloadURL();
+      photoUrlCache.set(storagePath, url);
+      return url;
+    } catch (e) {
+      // Cache negative result to prevent repeated hammering
+      photoUrlCache.set(storagePath, null);
+      console.warn("Could not load photo URL for:", storagePath, e?.code || "", e?.message || e);
+      return null;
+    }
   }
 
   async function hydratePeoplePhotoUrls(peopleArray) {
@@ -170,34 +198,33 @@
 
       const urls = [];
       for (const path of paths) {
-        try {
-          const u = await getDownloadUrlForPath(path);
-          if (u) urls.push(u);
-        } catch (e) {
-          console.warn("Could not load photo URL for:", path, e);
-        }
+        const u = await getDownloadUrlForPath(path);
+        if (u && isHttpUrl(u)) urls.push(u);
       }
+
       p._photoUrls = urls;
     }
+
     return peopleArray;
   }
+
+  // Harden: NEVER return raw storage paths for <img src>. Only return http(s) URLs.
   function photoList(r) {
-  // Prefer resolved download URLs
-  if (Array.isArray(r?._photoUrls) && r._photoUrls.length) {
-    return r._photoUrls.filter(u => /^https?:\/\//i.test(u));
+    if (Array.isArray(r?._photoUrls) && r._photoUrls.length) {
+      return r._photoUrls.filter(isHttpUrl);
+    }
+
+    const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
+    const urls = (arr || [])
+      .map(cleanPath)
+      .filter(Boolean)
+      .filter(isHttpUrl);
+
+    const single = (typeof r?.photo === "string") ? cleanPath(r.photo) : "";
+    if (single && isHttpUrl(single)) urls.unshift(single);
+
+    return urls;
   }
-
-  // If not resolved, DO NOT return raw storage paths (they will 404 as relative URLs)
-  const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
-  const urls = (arr || []).map(x => String(x).trim()).filter(Boolean).filter(u => /^https?:\/\//i.test(u));
-
-  const single = (typeof r?.photo === "string") ? String(r.photo).trim() : "";
-  if (single && /^https?:\/\//i.test(single)) urls.unshift(single);
-
-  return urls;
-}
-
- 
 
   // ============================
   // Data computation
@@ -253,7 +280,7 @@
   }
 
   // ============================
-  // Carousel engine
+  // Carousel engine (hardened)
   // ============================
   const carouselTimers = new Map();
 
@@ -261,58 +288,80 @@
     const t = carouselTimers.get(imgEl);
     if (t) clearInterval(t);
     carouselTimers.delete(imgEl);
+
+    // Remove old click handler if present (prevents handler stacking across re-renders)
+    if (imgEl && imgEl._carouselClickHandler) {
+      imgEl.removeEventListener("click", imgEl._carouselClickHandler);
+      delete imgEl._carouselClickHandler;
+    }
+
+    // Remove handlers
+    if (imgEl) {
+      imgEl.onerror = null;
+      imgEl.onload = null;
+    }
   }
 
   function startCarousel(imgEl, photos) {
     stopCarouselFor(imgEl);
     if (!imgEl || !Array.isArray(photos) || photos.length === 0) return;
 
+    // Harden: only allow http(s) URLs in carousel
+    const safePhotos = photos.filter(isHttpUrl);
+    if (safePhotos.length === 0) {
+      // No safe images; do not attempt to load
+      return;
+    }
+
     let idx = 0;
+    let consecutiveErrors = 0;
 
     const setSrc = () => {
       imgEl.classList.remove("fadeIn");
       void imgEl.offsetWidth;
-      imgEl.src = photos[idx];
+
+      imgEl.src = safePhotos[idx];
+
       imgEl.classList.add("fadeIn");
     };
 
-    let consecutiveErrors = 0;
+    imgEl.onload = () => {
+      // Reset error counter on any successful load
+      consecutiveErrors = 0;
+    };
 
+    // If images fail, advance; if we've failed >= number of photos, stop.
     imgEl.onerror = () => {
       consecutiveErrors++;
 
-  // If we have failed at least once per photo, stop trying
-  if (consecutiveErrors >= photos.length) {
-    stopCarouselFor(imgEl);
-    // Optional: clear src so it falls back visually (or leave as-is)
-    // imgEl.removeAttribute("src");
-    return;
-  }
+      if (consecutiveErrors >= safePhotos.length) {
+        stopCarouselFor(imgEl);
+        return;
+      }
 
-  idx = (idx + 1) % photos.length;
-  setSrc();
-};
-
+      idx = (idx + 1) % safePhotos.length;
+      setSrc();
+    };
 
     setSrc();
 
-    if (photos.length === 1) return;
+    // If only one photo, do not rotate; still allow click to open modal (handled elsewhere)
+    if (safePhotos.length === 1) return;
 
     const tickMs = 2600;
     const timer = setInterval(() => {
-      idx = (idx + 1) % photos.length;
+      idx = (idx + 1) % safePhotos.length;
       setSrc();
-      consecutiveErrors = 0;
-
     }, tickMs);
 
     carouselTimers.set(imgEl, timer);
 
-    // Tap to advance (kept for avatar small carousel)
-    imgEl.addEventListener("click", () => {
-      idx = (idx + 1) % photos.length;
+    // Tap to advance (single handler, cleaned up on stopCarouselFor)
+    imgEl._carouselClickHandler = () => {
+      idx = (idx + 1) % safePhotos.length;
       setSrc();
-    });
+    };
+    imgEl.addEventListener("click", imgEl._carouselClickHandler);
   }
 
   // ============================
@@ -327,8 +376,11 @@
 
     if (!modal || !img) return;
 
+    const safePhotos = Array.isArray(photos) ? photos.filter(isHttpUrl) : [];
+    if (!safePhotos.length) return;
+
     modalState.open = true;
-    modalState.photos = Array.isArray(photos) ? photos.filter(Boolean) : [];
+    modalState.photos = safePhotos;
     modalState.idx = Math.max(0, Math.min(Number(startIdx || 0), modalState.photos.length - 1));
     modalState.title = title || "Photos";
 
@@ -354,7 +406,6 @@
     modal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
 
-    // Clear src to prevent flash of previous image on next open
     const img = $("photoModalImg");
     if (img) img.removeAttribute("src");
   }
@@ -402,10 +453,9 @@
   }
 
   function wireModalSwipe(stageEl) {
-    // Conservative swipe detection (prevents accidental triggers)
-    const thresholdX = 40;   // minimum horizontal movement
-    const restraintY = 60;   // max vertical movement allowed
-    const minVelocity = 0.10; // px/ms (very forgiving)
+    const thresholdX = 40;
+    const restraintY = 60;
+    const minVelocity = 0.10;
 
     let tracking = false;
     let startX = 0;
@@ -427,7 +477,6 @@
 
     const onMove = (e) => {
       if (!tracking) return;
-      // If user is clearly scrolling vertically, stop tracking
       const t = e.touches && e.touches[0];
       if (!t) return;
 
@@ -451,23 +500,18 @@
       const dt = Math.max(1, Date.now() - startT);
       const vx = Math.abs(dx) / dt;
 
-      // Must be mostly horizontal
       if (Math.abs(dy) > restraintY) return;
 
       if (Math.abs(dx) >= thresholdX && vx >= minVelocity) {
-        // Prevent click ghosting
         if (e.cancelable) e.preventDefault();
-
-        if (dx < 0) modalNext(); // swipe left -> next
-        else modalPrev();        // swipe right -> prev
+        if (dx < 0) modalNext();
+        else modalPrev();
       }
     };
 
-    // Avoid double wiring
     if (stageEl.dataset.swipeWired === "1") return;
     stageEl.dataset.swipeWired = "1";
 
-    // Important: use passive:false so preventDefault is allowed when needed
     stageEl.addEventListener("touchstart", onStart, { passive: true });
     stageEl.addEventListener("touchmove", onMove, { passive: true });
     stageEl.addEventListener("touchend", onEnd, { passive: false });
@@ -493,20 +537,14 @@
     if (prevBtn) prevBtn.addEventListener("click", modalPrev);
     if (nextBtn) nextBtn.addEventListener("click", modalNext);
 
-    // Close if user clicks outside dialog (extra guard)
     modal.addEventListener("click", (e) => {
       if (e.target === modal) closePhotoModal();
     });
 
-    // Also close if clicking backdrop area (covers cases where modal click target differs)
     if (dialog) {
-      dialog.addEventListener("click", (e) => {
-        // Do nothing; prevents accidental bubbling to modal container
-        e.stopPropagation();
-      });
+      dialog.addEventListener("click", (e) => e.stopPropagation());
     }
 
-    // Swipe on the stage (image area)
     if (stage) wireModalSwipe(stage);
 
     document.addEventListener("keydown", (e) => {
@@ -576,7 +614,7 @@
       return;
     }
 
-    // stop all existing carousels before rebuild
+    // Stop all existing carousels before rebuild
     for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
 
     const computed = (state.data || []).map(computeRow);
@@ -684,7 +722,7 @@
         }
       }
 
-      // Open modal on avatar click (only if photos exist). Stop bubbling to img click.
+      // Open modal on avatar click (only if photos exist)
       avatarWrap.style.cursor = photos.length ? "pointer" : "default";
       avatarWrap.addEventListener("click", (e) => {
         if (!photos.length) return;
