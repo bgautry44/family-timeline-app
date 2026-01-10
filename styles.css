@@ -48,6 +48,61 @@ h1{
   font-size:13px;
 }
 
+/* ============================
+   Header layout + crest slot
+============================ */
+.headerLayout{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.headerMain{
+  flex: 1 1 auto;
+  min-width:0;
+}
+
+/* Crest container stays top-right and does not affect wrapping of controls */
+.headerCrest{
+  flex: 0 0 auto;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  padding-top: 14px; /* aligns with title baseline */
+}
+
+/* Crest image: fixed, non-intrusive, safe on mobile */
+.crestImg{
+  width:56px;
+  height:56px;
+  border-radius:14px;
+  object-fit:contain;
+  border:1px solid rgba(255,255,255,0.14);
+  background:#0e1422;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
+}
+
+/* Slightly larger on desktop */
+@media (min-width: 900px){
+  .crestImg{
+    width:72px;
+    height:72px;
+    border-radius:16px;
+  }
+}
+
+/* If the screen is extremely narrow, reduce crest to prevent crowding */
+@media (max-width: 380px){
+  .headerLayout{ gap:10px; }
+  .headerCrest{ padding-top: 12px; }
+  .crestImg{
+    width:48px;
+    height:48px;
+    border-radius:12px;
+  }
+}
+
 /* Family Timeline header controls (login + any filters you add later) */
 .controls{
   display:flex;
@@ -318,6 +373,7 @@ h1{
 .birthdayLine span{
   white-space:nowrap;
 }
+
 /* Desktop-first enhancement: larger avatar on wider screens */
 @media (min-width: 900px){
   .avatarWrap{
@@ -339,7 +395,8 @@ h1{
     font-size:17px;
   }
 }
-  /* ============================
+
+/* ============================
    Photo Modal / Lightbox
 ============================ */
 .modal[hidden]{ display:none; }
@@ -468,5 +525,3 @@ h1{
     min-height: 300px;
   }
 }
-
-
