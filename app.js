@@ -153,12 +153,10 @@
   function normalizeEmail(raw) {
     const s = String(raw || "").trim();
     if (!s) return "";
-    // Keep permissive; only block obvious bad strings that would break mailto UX
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     return ok ? s : "";
   }
 
-  // Create tel: href from a phone string, preserving leading "+" if present.
   function phoneToTelHref(raw) {
     const s = String(raw || "").trim();
     if (!s) return "";
@@ -206,7 +204,6 @@
       photoUrlCache.set(storagePath, url);
       return url;
     } catch (e) {
-      // Cache negative result to prevent repeated hammering
       photoUrlCache.set(storagePath, null);
       console.warn("Could not load photo URL for:", storagePath, e?.code || "", e?.message || e);
       return null;
@@ -235,7 +232,6 @@
     return peopleArray;
   }
 
-  // Harden: NEVER return raw storage paths for <img src>. Only return http(s) URLs.
   function photoList(r) {
     if (Array.isArray(r?._photoUrls) && r._photoUrls.length) {
       return r._photoUrls.filter(isHttpUrl);
@@ -266,4 +262,747 @@
     const ref = passedEffective ?? today;
     const ageObj = birth ? diffYMD(birth, ref) : null;
 
-    const isBirthdayToday = !!(birth && !passedEffective && s
+    const isBirthdayToday = !!(birth && !passedEffective && sameMonthDay(birth, today));
+    const wouldHaveTurned = (birth && passedEffective && sameMonthDay(birth, today))
+      ? (today.getFullYear() - birth.getFullYear())
+      : null;
+
+    const nextBirthday = birth ? nextBirthdayDate(birth, today) : null;
+
+    const email = normalizeEmail(r?.email);
+    const phoneDisplay = fmtPhoneDisplay(r?.phone);
+    const phoneHref = phoneToTelHref(phoneDisplay);
+
+    return {
+      ...r,
+      name: (r?.name ?? "").toString(),
+      tribute: (r?.tribute ?? "").toString(),
+      _birth: birth,
+      _passed: passedEffective,
+      ageText: birth ? fmtYMD(ageObj) : "—",
+      status: passedEffective ? "deceased" : "alive",
+      _photos: photoList(r),
+      isBirthdayToday,
+      nextBirthday,
+      wouldHaveTurned,
+
+      _email: email,
+      _phoneDisplay: phoneDisplay,
+      _phoneHref: phoneHref
+    };
+  }
+
+  function filterSort(rows) {
+    let out = Array.isArray(rows) ? rows : [];
+
+    if (!state.showDeceased) out = out.filter(r => r.status !== "deceased");
+
+    const q = normalize(state.q);
+    if (q) out = out.filter(r => normalize(r.name).includes(q));
+
+    out = out.slice().sort((a, b) => {
+      const aT = a._birth ? a._birth.getTime() : Number.POSITIVE_INFINITY;
+      const bT = b._birth ? b._birth.getTime() : Number.POSITIVE_INFINITY;
+      if (aT !== bT) return state.sortOldestFirst ? (aT - bT) : (bT - aT);
+      return (a.name ?? "").localeCompare(b.name ?? "");
+    });
+
+    return out;
+  }
+
+  // ============================
+  // Carousel engine (hardened)
+  // ============================
+  const carouselTimers = new Map();
+
+  function stopCarouselFor(imgEl) {
+    const t = carouselTimers.get(imgEl);
+    if (t) clearInterval(t);
+    carouselTimers.delete(imgEl);
+
+    if (imgEl && imgEl._carouselClickHandler) {
+      imgEl.removeEventListener("click", imgEl._carouselClickHandler);
+      delete imgEl._carouselClickHandler;
+    }
+
+    if (imgEl) {
+      imgEl.onerror = null;
+      imgEl.onload = null;
+    }
+  }
+
+  function startCarousel(imgEl, photos) {
+    stopCarouselFor(imgEl);
+    if (!imgEl || !Array.isArray(photos) || photos.length === 0) return;
+
+    const safePhotos = photos.filter(isHttpUrl);
+    if (safePhotos.length === 0) return;
+
+    let idx = 0;
+    let consecutiveErrors = 0;
+
+    const setSrc = () => {
+      imgEl.classList.remove("fadeIn");
+      void imgEl.offsetWidth;
+      imgEl.src = safePhotos[idx];
+      imgEl.classList.add("fadeIn");
+    };
+
+    imgEl.onload = () => { consecutiveErrors = 0; };
+
+    imgEl.onerror = () => {
+      consecutiveErrors++;
+      if (consecutiveErrors >= safePhotos.length) {
+        stopCarouselFor(imgEl);
+        return;
+      }
+      idx = (idx + 1) % safePhotos.length;
+      setSrc();
+    };
+
+    setSrc();
+
+    if (safePhotos.length === 1) return;
+
+    const tickMs = 2600;
+    const timer = setInterval(() => {
+      idx = (idx + 1) % safePhotos.length;
+      setSrc();
+    }, tickMs);
+
+    carouselTimers.set(imgEl, timer);
+
+    imgEl._carouselClickHandler = () => {
+      idx = (idx + 1) % safePhotos.length;
+      setSrc();
+    };
+    imgEl.addEventListener("click", imgEl._carouselClickHandler);
+  }
+
+  // ============================
+  // Photo Modal / Lightbox (with swipe)
+  // ============================
+  const modalState = { open: false, photos: [], idx: 0, title: "" };
+
+  function openPhotoModal(title, photos, startIdx) {
+    const modal = $("photoModal");
+    const img = $("photoModalImg");
+    const titleEl = $("photoModalTitle");
+
+    if (!modal || !img) return;
+
+    const safePhotos = Array.isArray(photos) ? photos.filter(isHttpUrl) : [];
+    if (!safePhotos.length) return;
+
+    modalState.open = true;
+    modalState.photos = safePhotos;
+    modalState.idx = Math.max(0, Math.min(Number(startIdx || 0), modalState.photos.length - 1));
+    modalState.title = title || "Photos";
+
+    if (titleEl) titleEl.textContent = modalState.title;
+
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+
+    renderModalPhoto();
+  }
+
+  function closePhotoModal() {
+    const modal = $("photoModal");
+    if (!modal) return;
+
+    modalState.open = false;
+    modalState.photos = [];
+    modalState.idx = 0;
+    modalState.title = "";
+
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+
+    const img = $("photoModalImg");
+    if (img) img.removeAttribute("src");
+  }
+
+  function renderModalPhoto() {
+    const img = $("photoModalImg");
+    const counter = $("photoModalCounter");
+    const prevBtn = $("photoPrev");
+    const nextBtn = $("photoNext");
+
+    const total = modalState.photos.length;
+    if (!img) return;
+
+    if (!total) {
+      if (counter) counter.textContent = "";
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      return;
+    }
+
+    const src = modalState.photos[modalState.idx];
+
+    img.classList.remove("fadeIn");
+    void img.offsetWidth;
+    img.src = src;
+    img.classList.add("fadeIn");
+
+    if (counter) counter.textContent = `${modalState.idx + 1} / ${total}`;
+    if (prevBtn) prevBtn.disabled = total <= 1;
+    if (nextBtn) nextBtn.disabled = total <= 1;
+  }
+
+  function modalPrev() {
+    const total = modalState.photos.length;
+    if (total <= 1) return;
+    modalState.idx = (modalState.idx - 1 + total) % total;
+    renderModalPhoto();
+  }
+
+  function modalNext() {
+    const total = modalState.photos.length;
+    if (total <= 1) return;
+    modalState.idx = (modalState.idx + 1) % total;
+    renderModalPhoto();
+  }
+
+  function wireModalSwipe(stageEl) {
+    const thresholdX = 40;
+    const restraintY = 60;
+    const minVelocity = 0.10;
+
+    let tracking = false;
+    let startX = 0;
+    let startY = 0;
+    let startT = 0;
+
+    const onStart = (e) => {
+      if (!modalState.open) return;
+      if (modalState.photos.length <= 1) return;
+
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+
+      tracking = true;
+      startX = t.clientX;
+      startY = t.clientY;
+      startT = Date.now();
+    };
+
+    const onMove = (e) => {
+      if (!tracking) return;
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+
+      if (Math.abs(dy) > restraintY && Math.abs(dy) > Math.abs(dx)) {
+        tracking = false;
+      }
+    };
+
+    const onEnd = (e) => {
+      if (!tracking) return;
+      tracking = false;
+
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      if (!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const dt = Math.max(1, Date.now() - startT);
+      const vx = Math.abs(dx) / dt;
+
+      if (Math.abs(dy) > restraintY) return;
+
+      if (Math.abs(dx) >= thresholdX && vx >= minVelocity) {
+        if (e.cancelable) e.preventDefault();
+        if (dx < 0) modalNext();
+        else modalPrev();
+      }
+    };
+
+    if (stageEl.dataset.swipeWired === "1") return;
+    stageEl.dataset.swipeWired = "1";
+
+    stageEl.addEventListener("touchstart", onStart, { passive: true });
+    stageEl.addEventListener("touchmove", onMove, { passive: true });
+    stageEl.addEventListener("touchend", onEnd, { passive: false });
+    stageEl.addEventListener("touchcancel", () => { tracking = false; }, { passive: true });
+  }
+
+  function wirePhotoModalOnce() {
+    const modal = $("photoModal");
+    if (!modal) return;
+    if (modal.dataset.wired === "1") return;
+    modal.dataset.wired = "1";
+
+    const backdrop = modal.querySelector(".modal__backdrop");
+    const dialog = modal.querySelector(".modal__dialog");
+    const stage = modal.querySelector(".modal__stage");
+
+    const closeBtn = $("photoModalClose");
+    const prevBtn = $("photoPrev");
+    const nextBtn = $("photoNext");
+
+    if (backdrop) backdrop.addEventListener("click", closePhotoModal);
+    if (closeBtn) closeBtn.addEventListener("click", closePhotoModal);
+    if (prevBtn) prevBtn.addEventListener("click", modalPrev);
+    if (nextBtn) nextBtn.addEventListener("click", modalNext);
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closePhotoModal();
+    });
+
+    if (dialog) {
+      dialog.addEventListener("click", (e) => e.stopPropagation());
+    }
+
+    if (stage) wireModalSwipe(stage);
+
+    document.addEventListener("keydown", (e) => {
+      if (!modalState.open) return;
+      if (e.key === "Escape") closePhotoModal();
+      if (e.key === "ArrowLeft") modalPrev();
+      if (e.key === "ArrowRight") modalNext();
+    });
+  }
+
+   // ============================
+  // Firestore loading
+  // ============================
+  async function ensureMemberDoc(user) {
+    const ref = db
+      .collection("families")
+      .doc(state.familyId)
+      .collection("members")
+      .doc(user.uid);
+
+    const snap = await ref.get();
+    if (snap.exists) return snap.data();
+
+    const email = user.email || "";
+    await ref.set({
+      role: "admin",
+      email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    const snap2 = await ref.get();
+    return snap2.exists ? snap2.data() : null;
+  }
+
+  async function loadPeopleOnce() {
+    if (!state.user) return;
+
+    if (!state.familyId || state.familyId.includes("PASTE_")) {
+      throw new Error("FAMILY_ID is not set in app.js");
+    }
+
+    await ensureMemberDoc(state.user);
+
+    const peopleRef = db.collection("families").doc(state.familyId).collection("people");
+    const snap = await peopleRef.get();
+
+    let arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    await hydratePeoplePhotoUrls(arr);
+
+    state.data = arr;
+  }
+
+  // ============================
+  // Render
+  // ============================
+  function render() {
+    const cards = $("cards");
+    const empty = $("empty");
+    const asOf = $("asOf");
+    const count = $("count");
+    const birthdayLine = $("birthdayLine");
+
+    if (!cards || !empty || !asOf || !count) {
+      console.error("Missing required DOM elements (cards, empty, asOf, count).");
+      return;
+    }
+
+    for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
+
+    const computed = (state.data || []).map(computeRow);
+    const filtered = filterSort(computed);
+    const today = todayLocal();
+
+    asOf.textContent = `As of: ${today.toLocaleDateString(undefined, {
+      weekday: "short", year: "numeric", month: "short", day: "numeric"
+    })}`;
+
+    count.textContent = `Shown: ${filtered.length} / ${computed.length}`;
+
+    if (birthdayLine) {
+      const soon = computed
+        .filter(r => r.status === "alive" && r._birth && r.nextBirthday)
+        .map(r => ({ name: r.name, date: r.nextBirthday }))
+        .filter(x => {
+          const diffDays = Math.ceil((x.date - today) / 86400000);
+          return diffDays >= 0 && diffDays <= 30;
+        })
+        .sort((a, b) => a.date - b.date);
+
+      if (soon.length) {
+        birthdayLine.innerHTML =
+          `<strong>Upcoming birthdays (next 30 days):</strong> ` +
+          soon.map(x =>
+            `<span>${escapeHtml(x.name)} (${x.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })})</span>`
+          ).join(" • ");
+        birthdayLine.hidden = false;
+      } else {
+        birthdayLine.hidden = true;
+      }
+    }
+
+    cards.innerHTML = "";
+    if (filtered.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    const frag = document.createDocumentFragment();
+
+    const makeRow = (label, value) => {
+      const d = document.createElement("div");
+      d.className = "row";
+
+      const l = document.createElement("span");
+      l.textContent = label;
+
+      const v = document.createElement("span");
+      v.className = "value";
+      v.textContent = (value == null || value === "") ? "—" : String(value);
+
+      d.appendChild(l);
+      d.appendChild(v);
+      return d;
+    };
+
+    const makeLinkRow = (label, href, text) => {
+      const d = document.createElement("div");
+      d.className = "row";
+
+      const l = document.createElement("span");
+      l.textContent = label;
+
+      const v = document.createElement("span");
+      v.className = "value";
+
+      if (href && typeof href === "string") {
+        const a = document.createElement("a");
+        a.href = href;
+        a.textContent = text || href;
+        a.rel = "noopener";
+        a.style.color = "inherit";
+        a.style.textDecoration = "none";
+        a.style.borderBottom = "1px solid rgba(255,255,255,0.18)";
+        a.style.paddingBottom = "1px";
+        v.appendChild(a);
+      } else {
+        v.textContent = (text == null || text === "") ? "—" : String(text);
+      }
+
+      d.appendChild(l);
+      d.appendChild(v);
+      return d;
+    };
+
+    for (const r of filtered) {
+      try {
+        const isMemorial = r.status === "deceased";
+        const isBirthday = !!r.isBirthdayToday;
+
+        let badgeClass = isMemorial ? "badge deceased" : "badge alive";
+        let badgeText = isMemorial ? "In Memoriam" : "Living";
+
+        if (isBirthday) {
+          badgeClass = "badge birthday";
+          badgeText = "🎂 Birthday Today";
+        }
+
+        const years = (r._birth || r._passed)
+          ? `${r._birth ? r._birth.getFullYear() : "—"} – ${r._passed ? r._passed.getFullYear() : "—"}`
+          : "";
+
+        const photos = Array.isArray(r._photos) ? r._photos : [];
+
+        const card = document.createElement("section");
+        card.className = "card" + (isMemorial ? " memorial" : "") + (isBirthday ? " birthdayToday" : "");
+
+        const top = document.createElement("div");
+        top.className = "cardTop";
+
+        const avatarWrap = document.createElement("div");
+        avatarWrap.className = "avatarWrap";
+
+        if (photos.length) {
+          const img = document.createElement("img");
+          img.className = "avatar";
+          img.alt = escapeHtml(r.name || "Photo");
+          img.loading = "lazy";
+          avatarWrap.appendChild(img);
+
+          if (photos.length > 1) {
+            const dot = document.createElement("div");
+            dot.className = "avatarDot";
+            dot.title = "Multiple photos";
+            dot.textContent = "↻";
+            avatarWrap.appendChild(dot);
+          } else if (isMemorial) {
+            const dot = document.createElement("div");
+            dot.className = "avatarDot";
+            dot.title = "In Memoriam";
+            dot.textContent = "✦";
+            avatarWrap.appendChild(dot);
+          }
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "avatar placeholder";
+          placeholder.setAttribute("aria-hidden", "true");
+          placeholder.textContent = "No photo";
+          avatarWrap.appendChild(placeholder);
+
+          if (isMemorial) {
+            const dot = document.createElement("div");
+            dot.className = "avatarDot";
+            dot.title = "In Memoriam";
+            dot.textContent = "✦";
+            avatarWrap.appendChild(dot);
+          }
+        }
+
+        avatarWrap.style.cursor = photos.length ? "pointer" : "default";
+        avatarWrap.addEventListener("click", (e) => {
+          if (!photos.length) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openPhotoModal(r.name || "Photos", photos, 0);
+        });
+
+        const topText = document.createElement("div");
+        topText.className = "cardTopText";
+
+        const nameEl = document.createElement("h2");
+        nameEl.className = "name";
+        nameEl.textContent = r.name || "Unnamed";
+
+        const badgeEl = document.createElement("div");
+        badgeEl.className = badgeClass;
+        badgeEl.textContent = badgeText;
+
+        topText.appendChild(nameEl);
+        topText.appendChild(badgeEl);
+
+        if (isMemorial) {
+          const memorialMark = document.createElement("div");
+          memorialMark.className = "memorialMark";
+          memorialMark.textContent = "In loving memory";
+          topText.appendChild(memorialMark);
+
+          if (years) {
+            const memorialYears = document.createElement("div");
+            memorialYears.className = "memorialYears";
+            memorialYears.textContent = years;
+            topText.appendChild(memorialYears);
+          }
+        }
+
+        top.appendChild(avatarWrap);
+        top.appendChild(topText);
+        card.appendChild(top);
+
+        card.appendChild(makeRow("Birthdate", fmtDate(r._birth)));
+        card.appendChild(makeRow(isMemorial ? "Age at passing" : "Current age", r.ageText || "—"));
+        card.appendChild(makeRow("Passed", fmtDate(r._passed)));
+
+        if (r._phoneDisplay && r._phoneHref) {
+          card.appendChild(makeLinkRow("Phone", r._phoneHref, r._phoneDisplay));
+        }
+        if (r._email) {
+          card.appendChild(makeLinkRow("Email", "mailto:" + r._email, r._email));
+        }
+
+        if (isMemorial && r.tribute && r.tribute.trim()) {
+          const tribute = document.createElement("div");
+          tribute.className = "tribute";
+          tribute.textContent = `“${r.tribute.trim()}”`;
+          card.appendChild(tribute);
+        }
+
+        if (isMemorial && r.wouldHaveTurned != null) {
+          const wht = document.createElement("div");
+          wht.className = "wouldHaveTurned";
+          wht.innerHTML =
+            `Remembering <strong>${escapeHtml(r.name)}</strong> today — would have turned <strong>${escapeHtml(String(r.wouldHaveTurned))}</strong>.`;
+          card.appendChild(wht);
+        }
+
+        frag.appendChild(card);
+
+        const imgEl = card.querySelector("img.avatar");
+        if (imgEl && photos.length) startCarousel(imgEl, photos);
+
+      } catch (e) {
+        console.error("Render error for record:", r?.id || r?.name || "(unknown)", e);
+        continue;
+      }
+    }
+
+    cards.appendChild(frag);
+  }
+
+  // ============================
+  // Login UI + auth state
+  // ============================
+  async function completeEmailLinkSignin() {
+    const href = window.location.href;
+
+    if (!auth || !auth.isSignInWithEmailLink || !auth.isSignInWithEmailLink(href)) return;
+
+    const storedEmail = window.localStorage.getItem("emailForSignIn");
+    const email = storedEmail || window.prompt("Confirm your email to finish sign-in:");
+    if (!email) return;
+
+    try {
+      await auth.signInWithEmailLink(email, href);
+      window.localStorage.removeItem("emailForSignIn");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (err) {
+      console.error(err);
+      alert("Sign-in failed. Please request a new login link and try again.");
+    }
+  }
+
+  function setUIAuthed(isAuthed, emailText) {
+    const whoami = $("whoami");
+    const logoutBtn = $("logoutBtn");
+    const loginForm = $("loginForm");
+    const appControls = $("appControls");
+
+    if (loginForm) loginForm.style.display = isAuthed ? "none" : "";
+    if (appControls) appControls.hidden = !isAuthed;
+
+    if (whoami) whoami.textContent = isAuthed ? (emailText || "Signed in") : "Not signed in";
+
+    if (logoutBtn) {
+      if ("hidden" in logoutBtn) logoutBtn.hidden = !isAuthed;
+      else logoutBtn.style.display = isAuthed ? "" : "none";
+    }
+  }
+
+  function wireLoginUI() {
+    const form = $("loginForm");
+    const emailEl = $("loginEmail");
+    const sendBtn = $("sendLinkBtn");
+    const logoutBtn = $("logoutBtn");
+
+    if (form && emailEl && sendBtn) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const email = (emailEl.value || "").trim();
+        if (!email) return;
+
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending…";
+
+        try {
+          await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+          window.localStorage.setItem("emailForSignIn", email);
+          alert("Login link sent. Open your email on this device and tap the link.");
+        } catch (err) {
+          console.error(err);
+          alert(`Could not send link.\n\nError: ${err.code || "unknown"}\n${err.message || ""}`);
+        } finally {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send login link";
+        }
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async () => {
+        try { await auth.signOut(); } catch (e) { console.error(e); }
+      });
+    }
+  }
+
+  function hookUI() {
+    const searchEl = $("search");
+    const showDeceasedEl = $("showDeceased");
+    const sortBtn = $("sortBtn");
+
+    if (searchEl) {
+      searchEl.addEventListener("input", (e) => {
+        state.q = e.target.value;
+        render();
+      });
+    }
+
+    if (showDeceasedEl) {
+      showDeceasedEl.addEventListener("change", (e) => {
+        state.showDeceased = e.target.checked;
+        render();
+      });
+    }
+
+    if (sortBtn) {
+      sortBtn.addEventListener("click", () => {
+        state.sortOldestFirst = !state.sortOldestFirst;
+        sortBtn.textContent = state.sortOldestFirst
+          ? "Sort: Oldest → Youngest"
+          : "Sort: Youngest → Oldest";
+        render();
+      });
+    }
+  }
+
+  // ============================
+  // Bootstrap
+  // ============================
+  async function bootstrap() {
+    if (!auth || !db || !storage) return;
+
+    wireLoginUI();
+    hookUI();
+    wirePhotoModalOnce();
+
+    await completeEmailLinkSignin();
+
+    auth.onAuthStateChanged(async (user) => {
+      state.user = user || null;
+
+      if (!user) {
+        state.data = [];
+        setUIAuthed(false, "");
+        render();
+        return;
+      }
+
+      setUIAuthed(true, user.email || "");
+
+      try {
+        await loadPeopleOnce();
+        render();
+      } catch (err) {
+        console.error(err);
+        alert(`Error loading data: ${err.code || "unknown"}\n${err.message || err}`);
+        state.data = [];
+        render();
+      }
+    });
+  }
+
+  bootstrap();
+})();
+
