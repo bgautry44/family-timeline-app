@@ -114,7 +114,7 @@ h1{
 
 .controls input{
   flex:1 1 220px;
-  min-width:140px;
+  min-width:160px;
   padding:10px 12px;
   border:1px solid var(--border);
   border-radius:12px;
@@ -147,7 +147,7 @@ h1{
   cursor:pointer;
 }
 
-  /* Birthday → Calendar button (Family Timeline) */
+/* Birthday → Calendar button (Family Timeline) */
 .calBtn{
   padding: 6px 10px;
   border: 1px solid rgba(255,255,255,0.16);
@@ -161,18 +161,8 @@ h1{
 
 .calBtn:active{ transform: translateY(1px); }
 .calBtn:hover{ border-color: rgba(255,122,26,0.55); }
+
 .calBtn:active{ transform: translateY(1px); }
-
-/* Keep the Show deceased pill on one line */
-.toggle{
-  flex: 0 0 auto;          /* don't shrink */
-  white-space: nowrap;     /* don't wrap text */
-}
-
-/* If your checkbox+text ever wraps inside the label */
-.toggle span{
-  white-space: nowrap;
-}
 
 .meta{
   display:flex;
@@ -215,7 +205,7 @@ h1{
   margin:6px 0;
 }
 
- .valueLink{
+.valueLink{
   color: var(--text);
   font-weight: 600;
   text-decoration: none;
@@ -231,6 +221,26 @@ h1{
   color:var(--text);
   font-weight:600;
   text-align:right;
+}
+
+/* ============================
+   Offspring / lists (NEW)
+============================ */
+.row.listRow{
+  justify-content:flex-start;
+  align-items:flex-start;
+  gap:12px;
+}
+
+.row.listRow > span:first-child{
+  flex: 0 0 110px;   /* label column */
+}
+
+.value.listValue{
+  flex: 1 1 auto;
+  text-align:left;   /* allow wrapping to the left for long name lists */
+  line-height:1.35;
+  word-break: break-word;
 }
 
 /* Badge: directly under name (and green for Living) */
