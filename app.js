@@ -166,14 +166,12 @@
   }
 
   // ============================
-  // Offspring (Option A) helpers (NEW)
+  // Children (Option A) helpers
   // ============================
   function normalizeNameArray(v, maxItems = 30) {
-    // Accept arrays only (primary), but gracefully handle common “bad” shapes
     let arr = [];
     if (Array.isArray(v)) arr = v;
     else if (typeof v === "string") {
-      // allow comma/semicolon delimited strings if someone pastes them (optional safety)
       const s = v.trim();
       if (s) arr = s.split(/[;,]/g);
     } else {
@@ -188,7 +186,6 @@
       if (cleaned.length >= maxItems) break;
     }
 
-    // de-dup (case-insensitive) while preserving order
     const seen = new Set();
     const out = [];
     for (const s of cleaned) {
@@ -393,8 +390,10 @@
     const phoneDisplay = fmtPhoneDisplay(r?.phone);
     const phoneHref = phoneToTelHref(phoneDisplay);
 
-    // Offspring (Option A)
-    const offspring = normalizeNameArray(r?.offspring);
+    // Children (preferred) with fallback to legacy "offspring"
+    const children = normalizeNameArray(
+      (r && r.children != null) ? r.children : r?.offspring
+    );
     const grandchildren = normalizeNameArray(r?.grandchildren);
 
     return {
@@ -414,7 +413,7 @@
       _phoneDisplay: phoneDisplay,
       _phoneHref: phoneHref,
 
-      _offspring: offspring,
+      _children: children,
       _grandchildren: grandchildren
     };
   }
@@ -1055,9 +1054,9 @@
           if (cal) card.appendChild(cal);
         }
 
-        // Offspring (Option A) display
-        const offspringRow = makeListRow("Offspring", r._offspring);
-        if (offspringRow) card.appendChild(offspringRow);
+        // Children + Grandchildren display
+        const childrenRow = makeListRow("Children", r._children);
+        if (childrenRow) card.appendChild(childrenRow);
 
         const grandsRow = makeListRow("Grandchildren", r._grandchildren);
         if (grandsRow) card.appendChild(grandsRow);
@@ -1235,4 +1234,3 @@
 
   bootstrap();
 })();
-
