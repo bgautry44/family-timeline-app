@@ -782,3 +782,51 @@ label.toggle > span {
   flex: 0 0 auto !important;
   width: auto !important;
 }
+/* HARD RESET for this specific toggle (kills grid/absolute/flex tricks) */
+label.toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Reset the checkbox */
+label.toggle > input#showDeceased {
+  margin: 0 !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+/* Reset the text span (this is where “push to the right” usually happens) */
+label.toggle > span {
+  position: static !important;
+  right: auto !important;
+  left: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+
+  display: inline !important;
+  float: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  flex: 0 0 auto !important;
+  flex-basis: auto !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+/* If any rule is forcing separation via auto margins, override it */
+label.toggle > span {
+  margin-left: 6px !important;
+  margin-right: 0 !important;
+}
