@@ -145,7 +145,7 @@
 
   function fmtMonthYear(d) {
     if (!d) return "";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
   // ============================
@@ -980,6 +980,23 @@
       d.appendChild(v);
       return d;
     };
+
+      function makeEventRow(dateText, titleText) {
+  const d = document.createElement("div");
+  d.className = "eventRow";
+
+  const left = document.createElement("span");
+  left.className = "eventDate";
+  left.textContent = dateText;
+
+  const right = document.createElement("span");
+  right.className = "eventTitle";
+  right.textContent = titleText;
+
+  d.appendChild(left);
+  d.appendChild(right);
+  return d;
+}
 
     const makeEventsBlock = (events) => {
       const list = Array.isArray(events) ? events : [];
