@@ -144,30 +144,39 @@
   }
 
   // For Events specifically (force full date)
-  function fmtEventDate(d) {
-    if (!d) return "";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  }
+function fmtEventDate(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "Date unknown";
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
 
    function sortEventsByDate(events, order = "desc") {
   const dir = order === "asc" ? 1 : -1;
 
   return [...(Array.isArray(events) ? events : [])].sort((a, b) => {
-    const da = (a && typeof a.date === "string") ? Date.parse(a.date) : NaN;
-    const db = (b && typeof b.date === "string") ? Date.parse(b.date) : NaN;
+    const at = (a && a.date instanceof Date) ? a.date.getTime() : NaN;
+    const bt = (b && b.date instanceof Date) ? b.date.getTime() : NaN;
 
-    const aValid = Number.isFinite(da);
-    const bValid = Number.isFinite(db);
+    const aValid = Number.isFinite(at);
+    const bValid = Number.isFinite(bt);
 
-    // Both invalid: keep stable-ish ordering
-    if (!aValid && !bValid) return 0;
+    // Both invalid: stable-ish, then by title if present
+    if (!aValid && !bValid) {
+      const ta = String(a?.title || "");
+      const tb = String(b?.title || "");
+      return ta.localeCompare(tb);
+    }
 
     // Invalid dates always go last
     if (!aValid) return 1;
     if (!bValid) return -1;
 
-    // Valid: compare by timestamp
-    return (da - db) * dir;
+    // Valid: compare timestamps
+    if (at !== bt) return (at - bt) * dir;
+
+    // Secondary sort: title
+    const ta = String(a?.title || "");
+    const tb = String(b?.title || "");
+    return ta.localeCompare(tb);
   });
 }
 
@@ -236,7 +245,7 @@
    // ============================
 // Events
 // ============================
-function normalizeEvents(v, maxItems = 80, order = "asc") {
+  function normalizeEvents(v, maxItems = 80, order = "asc") {
   // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
   const arr = Array.isArray(v) ? v : [];
   const out = [];
@@ -250,13 +259,10 @@ function normalizeEvents(v, maxItems = 80, order = "asc") {
     // Date may be missing/invalid; keep event anyway
     const d = parseISODate(item.date);
 
-    // Fallback title if missing (keeps UI stable)
-    const title = titleRaw || "Event";
-
     out.push({
       date: d || null,                 // Date object or null
       dateRaw: item.date || "",        // original string (or blank)
-      title,
+      title: titleRaw || "Event",      // fallback title
       note
     });
   }
@@ -264,17 +270,14 @@ function normalizeEvents(v, maxItems = 80, order = "asc") {
   const dir = order === "desc" ? -1 : 1;
 
   out.sort((a, b) => {
-    const at = a.date ? a.date.getTime() : NaN;
-    const bt = b.date ? b.date.getTime() : NaN;
+    const at = a.date instanceof Date ? a.date.getTime() : NaN;
+    const bt = b.date instanceof Date ? b.date.getTime() : NaN;
 
     const aValid = Number.isFinite(at);
     const bValid = Number.isFinite(bt);
 
     // Missing/invalid dates go last
-    if (!aValid && !bValid) {
-      // If both dates invalid, sort by title for stable output
-      return a.title.localeCompare(b.title);
-    }
+    if (!aValid && !bValid) return a.title.localeCompare(b.title);
     if (!aValid) return 1;
     if (!bValid) return -1;
 
@@ -285,6 +288,7 @@ function normalizeEvents(v, maxItems = 80, order = "asc") {
 
   return out.slice(0, maxItems);
 }
+
 
   
   // ============================
