@@ -818,33 +818,6 @@ function fmtEventDate(d) {
     if (!state.familyId || state.familyId.includes("PASTE_")) {
       throw new Error("FAMILY_ID is not set in app.js");
     }
-
-    async function loadAnnouncementsOnce() {
-  if (!state.user) return;
-
-  const ref = db
-    .collection("families")
-    .doc(state.familyId)
-    .collection("announcements");
-
-  // Robust ordering: only applies if fields/index exist; otherwise falls back
-  let query = ref;
-  try {
-    query = query.orderBy("pinned", "desc").orderBy("createdAt", "desc");
-  } catch (e) {
-    // fallback: no ordering
-  }
-
-  try {
-    const snap = await query.limit(5).get();
-    state.announcements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (e) {
-    console.warn("Announcements load failed:", e?.code || "", e?.message || e);
-    state.announcements = [];
-  }
-}
-
-
     await ensureMemberDoc(state.user);
 
     const peopleRef = db.collection("families").doc(state.familyId).collection("people");
@@ -855,6 +828,33 @@ function fmtEventDate(d) {
     await hydratePeoplePhotoUrls(arr);
 
     state.data = arr;
+  }
+
+      async function loadAnnouncementsOnce() {
+    if (!state.user) return;
+
+    if (!state.familyId || state.familyId.includes("PASTE_")) {
+      throw new Error("FAMILY_ID is not set in app.js");
+    }
+
+    const ref = db
+      .collection("families")
+      .doc(state.familyId)
+      .collection("announcements");
+
+    let query = ref;
+    // If pinned/createdAt do not exist or index isn't available yet, fall back.
+    try {
+      query = query.orderBy("pinned", "desc").orderBy("createdAt", "desc");
+    } catch (e) {}
+
+    try {
+      const snap = await query.limit(5).get();
+      state.announcements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn("Announcements load failed:", e?.code || "", e?.message || e);
+      state.announcements = [];
+    }
   }
 
   // ============================
@@ -934,72 +934,75 @@ function fmtEventDate(d) {
   // ============================
   // Render
   // ============================
-  function render() {
+    function render() {
     const cards = $("cards");
     const empty = $("empty");
     const asOf = $("asOf");
     const count = $("count");
     const birthdayLine = $("birthdayLine");
-    const upsertAnnouncementsHost = () => {
-  // Create a host div above the cards if it doesn't exist
-  let host = $("announcements");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "announcements";
 
-    // Insert above the cards container
-    const parent = cards.parentNode;
-    parent.insertBefore(host, cards);
-  }
-  return host;
-};
-
-const makeAnnouncementsBlock = (posts) => {
-  const list = Array.isArray(posts) ? posts : [];
-  if (!list.length) return null;
-
-  const wrap = document.createElement("section");
-  wrap.className = "annPanel";
-
-  const title = document.createElement("div");
-  title.className = "annTitle";
-  title.textContent = "Announcements";
-  wrap.appendChild(title);
-
-  const ul = document.createElement("ul");
-  ul.className = "annList";
-
-  for (const p of list) {
-    const li = document.createElement("li");
-    li.className = "annItem";
-
-    const text = String(p?.text || p?.message || "").trim();
-    if (!text) continue;
-
-    // Optional date line if present
-    const when = parseISODate(p?.date) || (p?.createdAt && typeof p.createdAt.toDate === "function" ? p.createdAt.toDate() : null);
-
-    if (when instanceof Date && !Number.isNaN(when.getTime())) {
-      const d = document.createElement("div");
-      d.className = "annDate";
-      d.textContent = when.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-      li.appendChild(d);
+    if (!cards || !empty || !asOf || !count) {
+      console.error("Missing required DOM elements (cards, empty, asOf, count).");
+      return;
     }
 
-    const body = document.createElement("div");
-    body.className = "annText";
-    body.textContent = text;
-    li.appendChild(body);
+    const upsertAnnouncementsHost = () => {
+      let host = $("announcements");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "announcements";
+        const parent = cards.parentNode;
+        parent.insertBefore(host, cards);
+      }
+      return host;
+    };
 
-    ul.appendChild(li);
-  }
+    const makeAnnouncementsBlock = (posts) => {
+      const list = Array.isArray(posts) ? posts : [];
+      if (!list.length) return null;
 
-  if (!ul.children.length) return null;
+      const wrap = document.createElement("section");
+      wrap.className = "annPanel";
 
-  wrap.appendChild(ul);
-  return wrap;
-};
+      const title = document.createElement("div");
+      title.className = "annTitle";
+      title.textContent = "Announcements";
+      wrap.appendChild(title);
 
+      const ul = document.createElement("ul");
+      ul.className = "annList";
+
+      for (const p of list) {
+        const text = String(p?.text || p?.message || "").trim();
+        if (!text) continue;
+
+        const li = document.createElement("li");
+        li.className = "annItem";
+
+        const when =
+          parseISODate(p?.date) ||
+          (p?.createdAt && typeof p.createdAt.toDate === "function" ? p.createdAt.toDate() : null);
+
+        if (when instanceof Date && !Number.isNaN(when.getTime())) {
+          const d = document.createElement("div");
+          d.className = "annDate";
+          d.textContent = when.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+          li.appendChild(d);
+        }
+
+        const body = document.createElement("div");
+        body.className = "annText";
+        body.textContent = text;
+        li.appendChild(body);
+
+        ul.appendChild(li);
+      }
+
+      if (!ul.children.length) return null;
+
+      wrap.appendChild(ul);
+      return wrap;
+    };
 
     if (!cards || !empty || !asOf || !count) {
       console.error("Missing required DOM elements (cards, empty, asOf, count).");
@@ -1043,7 +1046,6 @@ const makeAnnouncementsBlock = (posts) => {
       // --- Announcements (global) ---
       const annHost = upsertAnnouncementsHost();
       annHost.innerHTML = "";
-
       const annBlock = makeAnnouncementsBlock(state.announcements);
       if (annBlock) {
       annHost.appendChild(annBlock);
