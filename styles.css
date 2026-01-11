@@ -842,4 +842,35 @@ label.toggle {
   flex: 0 0 auto !important;
   align-self: center !important;
 }
+/* ============================
+   Controls bar: search + toggle
+   ============================ */
+
+#appControls.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;              /* spacing between search and toggle */
+  flex-wrap: wrap;        /* allows wrap on very small screens */
+}
+
+/* Let search take available width */
+#appControls.controls #search {
+  flex: 1 1 220px;        /* grows, but can shrink on phones */
+  min-width: 0;           /* prevents overflow in flex */
+}
+
+/* Keep toggle compact and un-stretched */
+#appControls.controls label.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;               /* spacing between checkbox and text */
+  flex: 0 0 auto;         /* DO NOT stretch */
+  width: auto;
+  white-space: nowrap;    /* keep "Show deceased" on one line */
+}
+
+/* Remove default checkbox spacing */
+#appControls.controls label.toggle input[type="checkbox"] {
+  margin: 0;
+}
 
