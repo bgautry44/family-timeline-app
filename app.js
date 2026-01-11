@@ -52,13 +52,12 @@
     }[s]));
   }
 
-  // Harden: sanitize any string inputs that may have accidental quotes/spaces
   function cleanPath(s) {
     return String(s || "")
       .trim()
-      .replace(/^\uFEFF/, "")       // strip BOM if present
-      .replace(/^"+|"+$/g, "")      // strip wrapping double quotes
-      .replace(/^'+|'+$/g, "");     // strip wrapping single quotes
+      .replace(/^\uFEFF/, "")
+      .replace(/^"+|"+$/g, "")
+      .replace(/^'+|'+$/g, "");
   }
 
   function isHttpUrl(s) {
@@ -70,28 +69,23 @@
     return isNaN(dt.getTime()) ? null : dt;
   }
 
-  // Parse as LOCAL date to avoid 1-day shifts, supports Firestore Timestamp
   function parseISODate(v) {
     if (v == null || v === "") return null;
 
-    // Date object
     if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
       return new Date(v.getFullYear(), v.getMonth(), v.getDate());
     }
 
-    // Firestore Timestamp
     if (v && typeof v.toDate === "function") {
       const d = v.toDate();
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
 
-    // ISO YYYY-MM-DD
     if (typeof v === "string") {
       const s = v.trim();
       const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (m) return localDateFromYMD(m[1], m[2], m[3]);
 
-      // fallback
       const d = new Date(s);
       if (!isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), d.getDate());
       return null;
@@ -115,7 +109,6 @@
     return (d < today) ? new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate()) : d;
   }
 
-  // Calendar-accurate Y/M/D difference
   function diffYMD(from, to) {
     let y = to.getFullYear() - from.getFullYear();
     let m = to.getMonth() - from.getMonth();
@@ -148,89 +141,7 @@
   }
 
   // ============================
-  // Birthday → Calendar (.ics) (NEW)
-  // ============================
-  function pad2(n) { return String(n).padStart(2, "0"); }
-
-  // All-day ICS date (no timezone): YYYYMMDD
-  function icsDate(d) {
-    return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
-  }
-
-  function safeFileName(name) {
-    return String(name || "birthday")
-      .replace(/[^\w\- ]+/g, "")
-      .trim()
-      .replace(/\s+/g, "_")
-      .slice(0, 60);
-  }
-
-  function downloadTextFile(filename, content, mime = "text/calendar;charset=utf-8") {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 1200);
-  }
-
-  function buildBirthdayIcs({ name, birthdate, nextDate }) {
-    const title = `${name} Birthday`;
-    const uid = `${safeFileName(name)}-${icsDate(nextDate)}@family-timeline`;
-
-    // DTSTAMP in UTC format: YYYYMMDDTHHMMSSZ
-    const now = new Date();
-    const dtstamp =
-      `${now.getUTCFullYear()}${pad2(now.getUTCMonth() + 1)}${pad2(now.getUTCDate())}` +
-      `T${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}Z`;
-
-    const dtStart = icsDate(nextDate);
-    const dtEndDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate() + 1);
-    const dtEnd = icsDate(dtEndDate);
-
-    const desc = birthdate
-      ? `Born ${birthdate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}`
-      : "";
-
-    return [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Family Timeline//Birthday//EN",
-      "CALSCALE:GREGORIAN",
-      "METHOD:PUBLISH",
-      "BEGIN:VEVENT",
-      `UID:${uid}`,
-      `DTSTAMP:${dtstamp}`,
-      `SUMMARY:${title}`,
-      `DTSTART;VALUE=DATE:${dtStart}`,
-      `DTEND;VALUE=DATE:${dtEnd}`,
-      "RRULE:FREQ=YEARLY",
-      desc ? `DESCRIPTION:${desc}` : null,
-      "END:VEVENT",
-      "END:VCALENDAR"
-    ].filter(Boolean).join("\r\n");
-  }
-
-  function addBirthdayToCalendar(name, birthDateObj, nextBirthdayObj) {
-    if (!name || !birthDateObj || !nextBirthdayObj) return;
-
-    const ics = buildBirthdayIcs({
-      name,
-      birthdate: birthDateObj,
-      nextDate: nextBirthdayObj
-    });
-
-    const file = `${safeFileName(name)}_Birthday.ics`;
-    downloadTextFile(file, ics);
-  }
-
-  // ============================
-  // Contact info (NEW, fail-safe)
+  // Contact info (fail-safe)
   // ============================
   function normalizeEmail(raw) {
     const s = String(raw || "").trim();
@@ -255,30 +166,135 @@
   }
 
   // ============================
+  // Calendar helpers (NEW)
+  // ============================
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function ymdLocal(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  // For Google/Outlook web: use date-only all-day format YYYYMMDD
+  function ymdCompact(d) {
+    return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+  }
+
+  function safeTextForUrl(s) {
+    return encodeURIComponent(String(s || "").replace(/\s+/g, " ").trim());
+  }
+
+  function buildBirthdayEvent(r) {
+    // r.nextBirthday is already computed as next upcoming birthday (local date at midnight)
+    const date = r.nextBirthday;
+    if (!date || isNaN(date.getTime())) return null;
+
+    const title = `${(r.name || "Family member").trim()} — Birthday`;
+    const desc = `Birthday reminder for ${((r.name || "family member").trim())}.`;
+
+    // All-day event: end date is next day (per iCal/Google convention)
+    const startYmd = ymdCompact(date);
+    const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+    const endYmd = ymdCompact(end);
+
+    return {
+      title,
+      description: desc,
+      date,
+      startYmd,
+      endYmd
+    };
+  }
+
+  function googleCalendarUrl(ev) {
+    // https://calendar.google.com/calendar/render?action=TEMPLATE&text=...&dates=YYYYMMDD/YYYYMMDD&details=...
+    const base = "https://calendar.google.com/calendar/render?action=TEMPLATE";
+    const text = `&text=${safeTextForUrl(ev.title)}`;
+    const dates = `&dates=${ev.startYmd}/${ev.endYmd}`;
+    const details = `&details=${safeTextForUrl(ev.description)}`;
+    return base + text + dates + details;
+  }
+
+  function outlookCalendarUrl(ev) {
+    // Outlook web deeplink compose
+    // startdt/enddt expect ISO; we use date-only at midnight local, but supply full ISO with Z-less by using local components.
+    // Outlook accepts "YYYY-MM-DD" for all-day with "allday=true" plus startdt/enddt.
+    const start = ymdLocal(ev.date);
+    const end = ymdLocal(new Date(ev.date.getFullYear(), ev.date.getMonth(), ev.date.getDate() + 1));
+
+    const base = "https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent";
+    const subject = `&subject=${safeTextForUrl(ev.title)}`;
+    const body = `&body=${safeTextForUrl(ev.description)}`;
+    const startdt = `&startdt=${safeTextForUrl(start)}`;
+    const enddt = `&enddt=${safeTextForUrl(end)}`;
+    const allDay = `&allday=true`;
+    return base + subject + body + startdt + enddt + allDay;
+  }
+
+  function icsEscape(s) {
+    // Minimal iCalendar escaping
+    return String(s || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/,/g, "\\,")
+      .replace(/;/g, "\\;");
+  }
+
+  function downloadIcs(ev) {
+    const uid = `family-timeline-${Date.now()}-${Math.random().toString(16).slice(2)}@local`;
+    const dtstamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+
+    // All-day DTSTART/DTEND are DATE values (no time)
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Family Timeline//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${dtstamp}`,
+      `SUMMARY:${icsEscape(ev.title)}`,
+      `DESCRIPTION:${icsEscape(ev.description)}`,
+      `DTSTART;VALUE=DATE:${ev.startYmd}`,
+      `DTEND;VALUE=DATE:${ev.endYmd}`,
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ];
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+
+    const fname = `${(ev.title || "birthday").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}-${ev.startYmd}.ics`;
+    a.download = fname || "birthday.ics";
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  // ============================
   // Storage photo URL resolving (hardened)
   // ============================
-  const photoUrlCache = new Map(); // key: cleaned path, value: downloadUrl (or null)
+  const photoUrlCache = new Map();
 
   function normalizePhotoPaths(r) {
     const list = [];
-
     if (Array.isArray(r?.photos)) list.push(...r.photos);
     else if (typeof r?.photos === "string" && r.photos.trim()) list.push(r.photos.trim());
-
     if (typeof r?.photo === "string" && r.photo.trim()) list.push(r.photo.trim());
-
-    return list
-      .map(cleanPath)
-      .filter(Boolean);
+    return list.map(cleanPath).filter(Boolean);
   }
 
   async function getDownloadUrlForPath(storagePathRaw) {
     const storagePath = cleanPath(storagePathRaw);
     if (!storagePath) return null;
 
-    // If already a URL, use as-is
     if (isHttpUrl(storagePath)) return storagePath;
-
     if (photoUrlCache.has(storagePath)) return photoUrlCache.get(storagePath);
 
     try {
@@ -320,10 +336,7 @@
     }
 
     const arr = Array.isArray(r?.photos) ? r.photos : (typeof r?.photos === "string" ? [r.photos] : []);
-    const urls = (arr || [])
-      .map(cleanPath)
-      .filter(Boolean)
-      .filter(isHttpUrl);
+    const urls = (arr || []).map(cleanPath).filter(Boolean).filter(isHttpUrl);
 
     const single = (typeof r?.photo === "string") ? cleanPath(r.photo) : "";
     if (single && isHttpUrl(single)) urls.unshift(single);
@@ -697,6 +710,83 @@
   }
 
   // ============================
+  // Calendar UI wiring (NEW)
+  // ============================
+  function closeAllCalMenus(exceptMenu) {
+    document.querySelectorAll(".calMenu").forEach((m) => {
+      if (exceptMenu && m === exceptMenu) return;
+      m.hidden = true;
+    });
+  }
+
+  function buildCalChooser(r) {
+    // Only for living people with a nextBirthday date
+    if (r.status !== "alive" || !r.nextBirthday) return null;
+
+    const ev = buildBirthdayEvent(r);
+    if (!ev) return null;
+
+    const wrap = document.createElement("div");
+    wrap.className = "calWrap";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "calBtn";
+    btn.textContent = "Add to calendar";
+
+    const menu = document.createElement("div");
+    menu.className = "calMenu";
+    menu.hidden = true;
+
+    const g = document.createElement("a");
+    g.href = googleCalendarUrl(ev);
+    g.target = "_blank";
+    g.rel = "noopener";
+    g.innerHTML = `<span>Google Calendar</span><small>opens web</small>`;
+
+    const o = document.createElement("a");
+    o.href = outlookCalendarUrl(ev);
+    o.target = "_blank";
+    o.rel = "noopener";
+    o.innerHTML = `<span>Outlook Calendar</span><small>opens web</small>`;
+
+    const i = document.createElement("a");
+    i.href = "#";
+    i.innerHTML = `<span>Download .ics</span><small>universal</small>`;
+    i.addEventListener("click", (e) => {
+      e.preventDefault();
+      downloadIcs(ev);
+      menu.hidden = true;
+    });
+
+    menu.appendChild(g);
+    menu.appendChild(o);
+    menu.appendChild(i);
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = menu.hidden === true;
+      closeAllCalMenus(menu);
+      menu.hidden = !willOpen;
+    });
+
+    // Clicking anywhere else closes it
+    wrap.addEventListener("click", (e) => e.stopPropagation());
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+
+    return wrap;
+  }
+
+  // Close menus on outside click / scroll / escape
+  document.addEventListener("click", () => closeAllCalMenus());
+  document.addEventListener("scroll", () => closeAllCalMenus(), { passive: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllCalMenus();
+  });
+
+  // ============================
   // Render
   // ============================
   function render() {
@@ -785,10 +875,7 @@
         a.href = href;
         a.textContent = text || href;
         a.rel = "noopener";
-        a.style.color = "inherit";
-        a.style.textDecoration = "none";
-        a.style.borderBottom = "1px solid rgba(255,255,255,0.18)";
-        a.style.paddingBottom = "1px";
+        a.className = "valueLink";
         v.appendChild(a);
       } else {
         v.textContent = (text == null || text === "") ? "—" : String(text);
@@ -904,34 +991,6 @@
         card.appendChild(top);
 
         card.appendChild(makeRow("Birthdate", fmtDate(r._birth)));
-
-        // NEW: Birthday → Calendar link (Living only)
-        if (r.status === "alive" && r._birth && r.nextBirthday) {
-          const row = document.createElement("div");
-          row.className = "row";
-
-          const l = document.createElement("span");
-          l.textContent = "Calendar";
-
-          const v = document.createElement("span");
-          v.className = "value";
-
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "calBtn";
-          btn.textContent = "Add Birthday";
-          btn.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            addBirthdayToCalendar(r.name || "Birthday", r._birth, r.nextBirthday);
-          });
-
-          v.appendChild(btn);
-          row.appendChild(l);
-          row.appendChild(v);
-          card.appendChild(row);
-        }
-
         card.appendChild(makeRow(isMemorial ? "Age at passing" : "Current age", r.ageText || "—"));
         card.appendChild(makeRow("Passed", fmtDate(r._passed)));
 
@@ -940,6 +999,12 @@
         }
         if (r._email) {
           card.appendChild(makeLinkRow("Email", "mailto:" + r._email, r._email));
+        }
+
+        // Calendar chooser (living + birthdate)
+        if (!isMemorial && r.nextBirthday) {
+          const cal = buildCalChooser(r);
+          if (cal) card.appendChild(cal);
         }
 
         if (isMemorial && r.tribute && r.tribute.trim()) {
