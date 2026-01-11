@@ -482,7 +482,7 @@ function fmtEventDate(d) {
     const children = normalizeNameArray((r && r.children != null) ? r.children : r?.offspring);
     const grandchildren = normalizeNameArray(r?.grandchildren);
 
-    const events = normalizeEvents(r?.events);
+    const events = normalizeEvents(r?.events, 80, "asc");
 
     return {
       ...r,
