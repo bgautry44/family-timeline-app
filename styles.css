@@ -833,3 +833,13 @@ label.toggle > span {
 label.toggle > input#showDeceased { outline: 2px solid red !important; }
 label.toggle > span { outline: 2px solid blue !important; }
 label.toggle { outline: 2px solid lime !important; }
+/* Toggle should NOT stretch across the row */
+label.toggle {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: fit-content !important;
+  justify-self: start !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+}
+
