@@ -103,7 +103,10 @@ h1{
   }
 }
 
-/* Family Timeline header controls (login + any filters you add later) */
+/* ============================
+   Controls bar (Search + Toggle)
+   IMPORTANT: this is the fix.
+============================ */
 .controls{
   display:flex;
   gap:10px;
@@ -112,6 +115,7 @@ h1{
   padding-bottom:10px;
 }
 
+/* Search is the flexible item */
 .controls input{
   flex:1 1 220px;
   min-width:160px;
@@ -145,6 +149,32 @@ h1{
   color:var(--text);
   font-size:13px;
   cursor:pointer;
+}
+
+/* FINAL: keep checkbox text right next to the box, never stretched */
+#appControls > label.toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-start;
+  flex:0 0 auto;              /* DO NOT let the label grow */
+  width:auto;                  /* shrink-wrap contents */
+  max-width:max-content;
+  white-space:nowrap;          /* stop wrapping on phone */
+}
+
+#appControls > label.toggle > input#showDeceased{
+  margin:0;
+  flex:0 0 auto;
+}
+
+#appControls > label.toggle > span{
+  display:inline-block;
+  margin:0 0 0 6px;            /* controlled spacing */
+  padding:0;
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  text-align:left;
 }
 
 /* Birthday → Calendar button (Family Timeline) */
@@ -273,7 +303,7 @@ h1{
 .cardTop{
   display:flex;
   gap:12px;
-  align-items:flex-start; /* IMPORTANT: top-align name with top of avatar */
+  align-items:flex-start; /* top-align name with top of avatar */
   margin:0 0 10px;
 }
 
@@ -292,7 +322,7 @@ h1{
   flex: 0 0 auto;
 }
 
-/* HARD clamp any img inside cardTop (covers cases where class changes) */
+/* HARD clamp any img inside cardTop */
 .cardTop img{
   width:56px !important;
   height:56px !important;
@@ -302,7 +332,7 @@ h1{
   background:#0e1422;
 }
 
-/* Preferred avatar class (matches your render code) */
+/* Preferred avatar class */
 .avatar{
   width:56px !important;
   height:56px !important;
@@ -328,7 +358,7 @@ h1{
   margin-top:0;
 }
 
- .annPanel {
+.annPanel{
   margin: 12px 0 14px;
   padding: 12px 12px;
   border-radius: 12px;
@@ -336,12 +366,12 @@ h1{
   border: 1px solid rgba(255,255,255,0.08);
 }
 
-.annTitle {
+.annTitle{
   font-weight: 600;
   margin-bottom: 8px;
 }
 
-.annList {
+.annList{
   list-style: none;
   padding: 0;
   margin: 0;
@@ -349,25 +379,25 @@ h1{
   gap: 10px;
 }
 
-.annItem {
+.annItem{
   padding: 10px 10px;
   border-radius: 10px;
   background: rgba(0,0,0,0.18);
   border: 1px solid rgba(255,255,255,0.06);
 }
 
-.annDate {
+.annDate{
   font-size: 0.85rem;
   opacity: 0.75;
   margin-bottom: 4px;
 }
 
-.annText {
+.annText{
   font-size: 0.95rem;
   line-height: 1.3;
 }
 
-.annLocation {
+.annLocation{
   margin-top: 4px;
   font-size: 0.85rem;
   opacity: 0.8;
@@ -427,6 +457,7 @@ h1{
 .fadeIn{
   animation: fadeInQuick .22s ease-out;
 }
+
 @keyframes fadeInQuick{
   from { opacity: .25; }
   to   { opacity: 1; }
@@ -468,24 +499,11 @@ h1{
 
 /* Desktop-first enhancement: larger avatar on wider screens */
 @media (min-width: 900px){
-  .avatarWrap{
-    width:72px;
-    height:72px;
-  }
-  .avatar{
-    width:72px !important;
-    height:72px !important;
-  }
-  .avatar.placeholder{
-    width:72px;
-    height:72px;
-  }
-  .cardTop{
-    gap:14px;
-  }
-  .name{
-    font-size:17px;
-  }
+  .avatarWrap{ width:72px; height:72px; }
+  .avatar{ width:72px !important; height:72px !important; }
+  .avatar.placeholder{ width:72px; height:72px; }
+  .cardTop{ gap:14px; }
+  .name{ font-size:17px; }
 }
 
 /* ============================
@@ -533,20 +551,18 @@ h1{
   white-space:nowrap;
 }
 
-  .eventDate.isUnknownDate {
+.eventDate.isUnknownDate{
   opacity: 0.7;
   font-style: italic;
 }
 
-.eventText{
-  min-width:0;
-}
+.eventText{ min-width:0; }
 
 /* IMPORTANT: event title should NOT look like a header */
 .events .eventTitle{
   font-size:0.85rem;
   color: #9aa4b2;
-  font-weight:400; /* was bold; now normal-ish */
+  font-weight:400;
   line-height:1.25;
 }
 
@@ -564,12 +580,6 @@ h1{
   opacity:.9;
 }
 
-  /* ===== Events Typography Reset ===== */
-.events,
-.events * {
-  font-weight: 400;
-}
-  
 /* ============================
    Photo Modal / Lightbox
 ============================ */
@@ -704,173 +714,3 @@ h1{
     grid-template-columns: 98px 1fr;
   }
 }
-/* ============================
-   Checkbox / toggle alignment
-   ============================ */
-
-/* Tighten checkbox + text spacing for the "Show deceased" toggle */
-label.toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;              /* reduce to 4px if you want tighter */
-  width: auto;           /* prevent stretching */
-  white-space: nowrap;   /* stop wrapping on phone */
-}
-
-label.toggle input[type="checkbox"] {
-  margin: 0;             /* remove browser default margins */
-}
-
-label.toggle span {
-  margin: 0;
-}
-label.toggle span {
-  flex: 0 0 auto !important;
-  width: auto !important;
-}
-/* FORCE the "Show deceased" checkbox + text to sit together */
-label.toggle {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 0 !important;          /* we'll control spacing via margin */
-  width: auto !important;
-}
-
-label.toggle > #showDeceased {
-  margin: 0 !important;
-}
-
-label.toggle > span {
-  margin: 0 0 0 6px !important;     /* the actual spacing you want */
-  flex: 0 0 auto !important;        /* prevents stretching */
-  width: auto !important;
-}
-
-/* If some rule set margin-left:auto to push text right, this defeats it */
-label.toggle > span {
-  margin-left: 6px !important;
-}
-/* FIX: Keep checkbox + text tight (prevents "left/right justified" look) */
-label.toggle {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  width: auto !important;
-  max-width: 100% !important;
-}
-
-label.toggle > input#showDeceased {
-  margin: 0 !important;
-}
-
-label.toggle > span {
-  margin: 0 0 0 6px !important;   /* controls spacing */
-  padding: 0 !important;
-  flex: 0 0 auto !important;      /* prevents stretching */
-  width: auto !important;
-  text-align: left !important;
-}
-
-/* Kill the most common culprit that pushes text to the far right */
-label.toggle > span {
-  margin-left: 6px !important;    /* overrides any margin-left:auto */
-}
-#showDeceased + span {
-  margin-left: 6px !important;
-  flex: 0 0 auto !important;
-  width: auto !important;
-}
-/* HARD RESET for this specific toggle (kills grid/absolute/flex tricks) */
-label.toggle {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 6px !important;
-  width: auto !important;
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-
-/* Reset the checkbox */
-label.toggle > input#showDeceased {
-  margin: 0 !important;
-  width: auto !important;
-  flex: 0 0 auto !important;
-}
-
-/* Reset the text span (this is where “push to the right” usually happens) */
-label.toggle > span {
-  position: static !important;
-  right: auto !important;
-  left: auto !important;
-  top: auto !important;
-  bottom: auto !important;
-
-  display: inline !important;
-  float: none !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-
-  flex: 0 0 auto !important;
-  flex-basis: auto !important;
-
-  text-align: left !important;
-  white-space: nowrap !important;
-}
-
-/* If any rule is forcing separation via auto margins, override it */
-label.toggle > span {
-  margin-left: 6px !important;
-  margin-right: 0 !important;
-}
-label.toggle > input#showDeceased { outline: 2px solid red !important; }
-label.toggle > span { outline: 2px solid blue !important; }
-label.toggle { outline: 2px solid lime !important; }
-/* Toggle should NOT stretch across the row */
-label.toggle {
-  display: inline-flex !important;
-  width: fit-content !important;
-  max-width: fit-content !important;
-  justify-self: start !important;
-  flex: 0 0 auto !important;
-  align-self: center !important;
-}
-/* ============================
-   Controls bar: search + toggle
-   ============================ */
-
-#appControls.controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;              /* spacing between search and toggle */
-  flex-wrap: wrap;        /* allows wrap on very small screens */
-}
-
-/* Let search take available width */
-#appControls.controls #search {
-  flex: 1 1 220px;        /* grows, but can shrink on phones */
-  min-width: 0;           /* prevents overflow in flex */
-}
-
-/* Keep toggle compact and un-stretched */
-#appControls.controls label.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;               /* spacing between checkbox and text */
-  flex: 0 0 auto;         /* DO NOT stretch */
-  width: auto;
-  white-space: nowrap;    /* keep "Show deceased" on one line */
-}
-
-/* Remove default checkbox spacing */
-#appControls.controls label.toggle input[type="checkbox"] {
-  margin: 0;
-}
-
