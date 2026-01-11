@@ -791,26 +791,28 @@ function fmtEventDate(d) {
   // Firestore loading
   // ============================
   async function ensureMemberDoc(user) {
-    const ref = db
-      .collection("families")
-      .doc(state.familyId)
-      .collection("members")
-      .doc(user.uid);
+  const ref = db
+    .collection("families")
+    .doc(state.familyId)
+    .collection("members")
+    .doc(user.uid);
 
-    const snap = await ref.get();
-    if (snap.exists) return snap.data();
+  const snap = await ref.get();
+  if (snap.exists) return snap.data();
 
-    const email = user.email || "";
-    await ref.set({
-      role: "member",
-      email,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+  const email = user.email || "";
 
-    const snap2 = await ref.get();
-    return snap2.exists ? snap2.data() : null;
-  }
+  // Must be "member" to satisfy rules; promote to admin manually in console if needed.
+  await ref.set({
+    role: "member",
+    email,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  const snap2 = await ref.get();
+  return snap2.exists ? snap2.data() : null;
+}
 
   async function loadPeopleOnce() {
     if (!state.user) return;
