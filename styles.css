@@ -711,7 +711,7 @@ h1{
 label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;           /* tighten space between checkbox and text */
+  gap: 4px;           /* tighten space between checkbox and text */
   white-space: nowrap;
 }
 
