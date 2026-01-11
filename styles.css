@@ -729,3 +729,26 @@ label.toggle span {
   flex: 0 0 auto !important;
   width: auto !important;
 }
+/* FORCE the "Show deceased" checkbox + text to sit together */
+label.toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;          /* we'll control spacing via margin */
+  width: auto !important;
+}
+
+label.toggle > #showDeceased {
+  margin: 0 !important;
+}
+
+label.toggle > span {
+  margin: 0 0 0 6px !important;     /* the actual spacing you want */
+  flex: 0 0 auto !important;        /* prevents stretching */
+  width: auto !important;
+}
+
+/* If some rule set margin-left:auto to push text right, this defeats it */
+label.toggle > span {
+  margin-left: 6px !important;
+}
