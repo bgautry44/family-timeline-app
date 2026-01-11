@@ -714,3 +714,34 @@ h1{
     grid-template-columns: 98px 1fr;
   }
 }
+/* ============================
+   FINAL FIX: Show deceased toggle spacing
+   ============================ */
+
+/* Make the toggle shrink-wrap its contents */
+#appControls.controls label.toggle{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+}
+
+/* Stop global ".controls input" styling from affecting the checkbox */
+#appControls.controls label.toggle > input#showDeceased{
+  all: revert !important;        /* resets checkbox to browser default */
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+/* Ensure the label text doesn't stretch or behave like a block */
+#appControls.controls label.toggle > span{
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+ 
