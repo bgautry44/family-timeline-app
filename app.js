@@ -1033,7 +1033,6 @@ function fmtEventDate(d) {
   return wrap;
 };
 
-   
     if (!cards || !empty || !asOf || !count) {
       console.error("Missing required DOM elements (cards, empty, asOf, count).");
       return;
