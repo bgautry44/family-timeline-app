@@ -830,32 +830,38 @@ function fmtEventDate(d) {
     state.data = arr;
   }
 
-      async function loadAnnouncementsOnce() {
-    if (!state.user) return;
+     async function loadAnnouncementsOnce() {
+  if (!state.user) return;
 
-    if (!state.familyId || state.familyId.includes("PASTE_")) {
-      throw new Error("FAMILY_ID is not set in app.js");
-    }
+  const ref = db
+    .collection("families")
+    .doc(state.familyId)
+    .collection("announcements");
 
-    const ref = db
-      .collection("families")
-      .doc(state.familyId)
-      .collection("announcements");
+  // 1) Try ordered query (best UX)
+  try {
+    const snap = await ref
+      .orderBy("pinned", "desc")
+      .orderBy("createdAt", "desc")
+      .limit(5)
+      .get();
 
-    let query = ref;
-    // If pinned/createdAt do not exist or index isn't available yet, fall back.
-    try {
-      query = query.orderBy("pinned", "desc").orderBy("createdAt", "desc");
-    } catch (e) {}
-
-    try {
-      const snap = await query.limit(5).get();
-      state.announcements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    } catch (e) {
-      console.warn("Announcements load failed:", e?.code || "", e?.message || e);
-      state.announcements = [];
-    }
+    state.announcements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return;
+  } catch (e) {
+    console.warn("Announcements ordered query failed (will retry simple):", e?.code || "", e?.message || e);
   }
+
+  // 2) Fallback: simple query (no index required)
+  try {
+    const snap2 = await ref.limit(5).get();
+    state.announcements = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e2) {
+    console.warn("Announcements simple query failed:", e2?.code || "", e2?.message || e2);
+    state.announcements = [];
+  }
+}
+
 
   // ============================
   // Calendar UI wiring
