@@ -708,14 +708,20 @@ h1{
    Checkbox / toggle alignment
    ============================ */
 
-label {
+/* Tighten checkbox + text spacing for the "Show deceased" toggle */
+label.toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;           /* tighten space between checkbox and text */
-  white-space: nowrap;
+  justify-content: flex-start;
+  gap: 6px;              /* reduce to 4px if you want tighter */
+  width: auto;           /* prevent stretching */
+  white-space: nowrap;   /* stop wrapping on phone */
 }
 
-input[type="checkbox"] {
+label.toggle input[type="checkbox"] {
+  margin: 0;             /* remove browser default margins */
+}
+
+label.toggle span {
   margin: 0;
 }
-
