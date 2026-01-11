@@ -777,3 +777,8 @@ label.toggle > span {
 label.toggle > span {
   margin-left: 6px !important;    /* overrides any margin-left:auto */
 }
+#showDeceased + span {
+  margin-left: 6px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
