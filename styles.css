@@ -830,3 +830,6 @@ label.toggle > span {
   margin-left: 6px !important;
   margin-right: 0 !important;
 }
+label.toggle > input#showDeceased { outline: 2px solid red !important; }
+label.toggle > span { outline: 2px solid blue !important; }
+label.toggle { outline: 2px solid lime !important; }
