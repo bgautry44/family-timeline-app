@@ -725,3 +725,7 @@ label.toggle input[type="checkbox"] {
 label.toggle span {
   margin: 0;
 }
+label.toggle span {
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
