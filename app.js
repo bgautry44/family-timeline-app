@@ -964,53 +964,70 @@ function fmtEventDate(d) {
       }
       return host;
     };
+      const makeAnnouncementsBlock = (posts) => {
+  const list = Array.isArray(posts) ? posts : [];
+  if (!list.length) return null;
 
-    const makeAnnouncementsBlock = (posts) => {
-      const list = Array.isArray(posts) ? posts : [];
-      if (!list.length) return null;
+  const wrap = document.createElement("section");
+  wrap.className = "annPanel";
 
-      const wrap = document.createElement("section");
-      wrap.className = "annPanel";
+  const title = document.createElement("div");
+  title.className = "annTitle";
+  title.textContent = "Announcements";
+  wrap.appendChild(title);
 
-      const title = document.createElement("div");
-      title.className = "annTitle";
-      title.textContent = "Announcements";
-      wrap.appendChild(title);
+  const ul = document.createElement("ul");
+  ul.className = "annList";
 
-      const ul = document.createElement("ul");
-      ul.className = "annList";
+  for (const p of list) {
+    if (!p || typeof p !== "object") continue;
 
-      for (const p of list) {
-        const text = String(p?.text || p?.message || "").trim();
-        if (!text) continue;
+    // Primary message text
+    const text = String(p.text ?? p.message ?? "").trim();
+    if (!text) continue;
 
-        const li = document.createElement("li");
-        li.className = "annItem";
+    const li = document.createElement("li");
+    li.className = "annItem";
 
-        const when =
-          parseISODate(p?.date) ||
-          (p?.createdAt && typeof p.createdAt.toDate === "function" ? p.createdAt.toDate() : null);
+    // Date line (optional): prefer eventAt, then date, then createdAt
+    const when =
+      (p.eventAt && typeof p.eventAt.toDate === "function") ? p.eventAt.toDate()
+      : parseISODate(p.date)
+      || ((p.createdAt && typeof p.createdAt.toDate === "function") ? p.createdAt.toDate() : null);
 
-        if (when instanceof Date && !Number.isNaN(when.getTime())) {
-          const d = document.createElement("div");
-          d.className = "annDate";
-          d.textContent = when.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-          li.appendChild(d);
-        }
+    if (when instanceof Date && !Number.isNaN(when.getTime())) {
+      const d = document.createElement("div");
+      d.className = "annDate";
+      d.textContent = when.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      li.appendChild(d);
+    }
 
-        const body = document.createElement("div");
-        body.className = "annText";
-        body.textContent = text;
-        li.appendChild(body);
+    // Body text
+    const body = document.createElement("div");
+    body.className = "annText";
+    body.textContent = text;
+    li.appendChild(body);
 
-        ul.appendChild(li);
-      }
+    // Location (optional)
+    const loc = String(p.location ?? "").trim();
+    if (loc) {
+      const l = document.createElement("div");
+      l.className = "annLocation";
+      l.textContent = `Location: ${loc}`;
+      li.appendChild(l);
+    }
 
-      if (!ul.children.length) return null;
+    ul.appendChild(li);
+  }
 
-      wrap.appendChild(ul);
-      return wrap;
-    };
+  // If nothing valid made it in, don't show the panel
+  if (!ul.children.length) return null;
+
+  wrap.appendChild(ul);
+  return wrap;
+};
+
+   
     if (!cards || !empty || !asOf || !count) {
       console.error("Missing required DOM elements (cards, empty, asOf, count).");
       return;
