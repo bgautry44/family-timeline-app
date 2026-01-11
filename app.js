@@ -1011,11 +1011,18 @@ function fmtEventDate(d) {
       wrap.appendChild(ul);
       return wrap;
     };
-
     if (!cards || !empty || !asOf || !count) {
       console.error("Missing required DOM elements (cards, empty, asOf, count).");
       return;
     }
+
+      const loc = String(p?.location || "").trim();
+if (loc) {
+  const l = document.createElement("div");
+  l.className = "annLocation";
+  l.textContent = `📍 ${loc}`;
+  li.appendChild(l);
+}
 
     for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
 
