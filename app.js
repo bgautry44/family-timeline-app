@@ -149,6 +149,28 @@
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
+   function sortEventsByDate(events, order = "desc") {
+  const dir = order === "asc" ? 1 : -1;
+
+  return [...(Array.isArray(events) ? events : [])].sort((a, b) => {
+    const da = (a && typeof a.date === "string") ? Date.parse(a.date) : NaN;
+    const db = (b && typeof b.date === "string") ? Date.parse(b.date) : NaN;
+
+    const aValid = Number.isFinite(da);
+    const bValid = Number.isFinite(db);
+
+    // Both invalid: keep stable-ish ordering
+    if (!aValid && !bValid) return 0;
+
+    // Invalid dates always go last
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+
+    // Valid: compare by timestamp
+    return (da - db) * dir;
+  });
+}
+
   // ============================
   // Contact info (fail-safe)
   // ============================
@@ -212,43 +234,48 @@
   }
 
   // ============================
-  // Events
-  // ============================
-  function normalizeEvents(v, maxItems = 80) {
-    // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
-    let arr = Array.isArray(v) ? v : [];
-    const out = [];
+// Events
+// ============================
+function normalizeEvents(v, maxItems = 80, order = "desc") {
+  // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
+  const arr = Array.isArray(v) ? v : [];
+  const out = [];
 
-    for (const item of arr) {
-      if (!item || typeof item !== "object") continue;
+  for (const item of arr) {
+    if (!item || typeof item !== "object") continue;
 
-      const title = String(item.title || "").replace(/\s+/g, " ").trim();
-      const note = String(item.note || "").replace(/\s+/g, " ").trim();
-      const d = parseISODate(item.date);
+    const title = String(item.title || "").replace(/\s+/g, " ").trim();
+    const note = String(item.note || "").replace(/\s+/g, " ").trim();
+    const d = parseISODate(item.date);
 
-      if (!title || !d) continue;
+    if (!title || !d) continue;
 
-      out.push({
-        date: d,
-        dateRaw: item.date,
-        title,
-        note
-      });
-
-      if (out.length >= maxItems) break;
-    }
-
-    // Sort ascending by date, then title
-    out.sort((a, b) => {
-      const at = a.date.getTime();
-      const bt = b.date.getTime();
-      if (at !== bt) return at - bt;
-      return a.title.localeCompare(b.title);
+    out.push({
+      date: d,              // Date object (from parseISODate)
+      dateRaw: item.date,   // Original string
+      title,
+      note
     });
 
-    return out;
+    // NOTE: do NOT break here; we want to sort the full set first
+    // and then take the top `maxItems` after sorting.
   }
 
+  const dir = order === "asc" ? 1 : -1;
+
+  // Sort by date, then title
+  out.sort((a, b) => {
+    const at = a.date.getTime();
+    const bt = b.date.getTime();
+
+    if (at !== bt) return (at - bt) * dir;
+    return a.title.localeCompare(b.title);
+  });
+
+  return out.slice(0, maxItems);
+}
+
+  
   // ============================
   // Calendar helpers
   // ============================
