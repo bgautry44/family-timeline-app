@@ -704,3 +704,18 @@ h1{
     grid-template-columns: 98px 1fr;
   }
 }
+/* ============================
+   Checkbox / toggle alignment
+   ============================ */
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;           /* tighten space between checkbox and text */
+  white-space: nowrap;
+}
+
+input[type="checkbox"] {
+  margin: 0;
+}
+
