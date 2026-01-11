@@ -1038,14 +1038,6 @@ function fmtEventDate(d) {
       return;
     }
 
-      const loc = String(p?.location || "").trim();
-if (loc) {
-  const l = document.createElement("div");
-  l.className = "annLocation";
-  l.textContent = `📍 ${loc}`;
-  li.appendChild(l);
-}
-
     for (const [imgEl] of carouselTimers) stopCarouselFor(imgEl);
 
     const computed = (state.data || []).map(computeRow);
