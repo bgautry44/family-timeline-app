@@ -453,8 +453,8 @@ h1{
 }
 
 .eventsTitle{
-  font-size:12px;
-  color: var(--muted);
+  font-size:0.85rem;
+  color: #9aa4b2;
   letter-spacing:.2px;
   margin-bottom:8px;
   font-weight:400;
@@ -478,8 +478,8 @@ h1{
 }
 
 .eventDate{
-  font-size:12px;
-  color: var(--muted);
+  font-size:0.85rem;
+  color: #9aa4b2;
   border:1px solid rgba(255,255,255,0.10);
   border-radius:999px;
   padding:4px 8px;
@@ -494,26 +494,32 @@ h1{
 
 /* IMPORTANT: event title should NOT look like a header */
 .events .eventTitle{
-  font-size:12px;
-  color: var(--text);
+  font-size:0.85rem;
+  color: #9aa4b2;
   font-weight:400; /* was bold; now normal-ish */
   line-height:1.25;
 }
 
 .eventNote{
   margin-top:2px;
-  font-size:12px;
-  color: var(--muted);
+  font-size:0.85rem;
+  color: #9aa4b2;
   line-height:1.25;
 }
 
 .eventsMore{
   margin-top:8px;
-  font-size:12px;
-  color: var(--muted);
+  font-size:0.85rem;
+  color: #9aa4b2;
   opacity:.9;
 }
 
+  /* ===== Events Typography Reset ===== */
+.events,
+.events * {
+  font-weight: 400;
+}
+  
 /* ============================
    Photo Modal / Lightbox
 ============================ */
