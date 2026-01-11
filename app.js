@@ -148,6 +148,88 @@
   }
 
   // ============================
+  // Birthday → Calendar (.ics) (NEW)
+  // ============================
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  // All-day ICS date (no timezone): YYYYMMDD
+  function icsDate(d) {
+    return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+  }
+
+  function safeFileName(name) {
+    return String(name || "birthday")
+      .replace(/[^\w\- ]+/g, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 60);
+  }
+
+  function downloadTextFile(filename, content, mime = "text/calendar;charset=utf-8") {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  function buildBirthdayIcs({ name, birthdate, nextDate }) {
+    const title = `${name} Birthday`;
+    const uid = `${safeFileName(name)}-${icsDate(nextDate)}@family-timeline`;
+
+    // DTSTAMP in UTC format: YYYYMMDDTHHMMSSZ
+    const now = new Date();
+    const dtstamp =
+      `${now.getUTCFullYear()}${pad2(now.getUTCMonth() + 1)}${pad2(now.getUTCDate())}` +
+      `T${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}Z`;
+
+    const dtStart = icsDate(nextDate);
+    const dtEndDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate() + 1);
+    const dtEnd = icsDate(dtEndDate);
+
+    const desc = birthdate
+      ? `Born ${birthdate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}`
+      : "";
+
+    return [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Family Timeline//Birthday//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${dtstamp}`,
+      `SUMMARY:${title}`,
+      `DTSTART;VALUE=DATE:${dtStart}`,
+      `DTEND;VALUE=DATE:${dtEnd}`,
+      "RRULE:FREQ=YEARLY",
+      desc ? `DESCRIPTION:${desc}` : null,
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].filter(Boolean).join("\r\n");
+  }
+
+  function addBirthdayToCalendar(name, birthDateObj, nextBirthdayObj) {
+    if (!name || !birthDateObj || !nextBirthdayObj) return;
+
+    const ics = buildBirthdayIcs({
+      name,
+      birthdate: birthDateObj,
+      nextDate: nextBirthdayObj
+    });
+
+    const file = `${safeFileName(name)}_Birthday.ics`;
+    downloadTextFile(file, ics);
+  }
+
+  // ============================
   // Contact info (NEW, fail-safe)
   // ============================
   function normalizeEmail(raw) {
@@ -570,7 +652,7 @@
     });
   }
 
-   // ============================
+  // ============================
   // Firestore loading
   // ============================
   async function ensureMemberDoc(user) {
@@ -822,6 +904,34 @@
         card.appendChild(top);
 
         card.appendChild(makeRow("Birthdate", fmtDate(r._birth)));
+
+        // NEW: Birthday → Calendar link (Living only)
+        if (r.status === "alive" && r._birth && r.nextBirthday) {
+          const row = document.createElement("div");
+          row.className = "row";
+
+          const l = document.createElement("span");
+          l.textContent = "Calendar";
+
+          const v = document.createElement("span");
+          v.className = "value";
+
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "calBtn";
+          btn.textContent = "Add Birthday";
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addBirthdayToCalendar(r.name || "Birthday", r._birth, r.nextBirthday);
+          });
+
+          v.appendChild(btn);
+          row.appendChild(l);
+          row.appendChild(v);
+          card.appendChild(row);
+        }
+
         card.appendChild(makeRow(isMemorial ? "Age at passing" : "Current age", r.ageText || "—"));
         card.appendChild(makeRow("Passed", fmtDate(r._passed)));
 
@@ -1005,4 +1115,3 @@
 
   bootstrap();
 })();
-
