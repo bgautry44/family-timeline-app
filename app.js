@@ -166,7 +166,47 @@
   }
 
   // ============================
-  // Calendar helpers (NEW)
+  // Offspring (Option A) helpers (NEW)
+  // ============================
+  function normalizeNameArray(v, maxItems = 30) {
+    // Accept arrays only (primary), but gracefully handle common “bad” shapes
+    let arr = [];
+    if (Array.isArray(v)) arr = v;
+    else if (typeof v === "string") {
+      // allow comma/semicolon delimited strings if someone pastes them (optional safety)
+      const s = v.trim();
+      if (s) arr = s.split(/[;,]/g);
+    } else {
+      arr = [];
+    }
+
+    const cleaned = [];
+    for (const item of arr) {
+      const s = String(item || "").replace(/\s+/g, " ").trim();
+      if (!s) continue;
+      cleaned.push(s);
+      if (cleaned.length >= maxItems) break;
+    }
+
+    // de-dup (case-insensitive) while preserving order
+    const seen = new Set();
+    const out = [];
+    for (const s of cleaned) {
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+    }
+    return out;
+  }
+
+  function joinNameList(arr, bullet = " • ") {
+    const list = Array.isArray(arr) ? arr : [];
+    return list.length ? list.join(bullet) : "";
+  }
+
+  // ============================
+  // Calendar helpers
   // ============================
   function pad2(n) { return String(n).padStart(2, "0"); }
 
@@ -174,7 +214,6 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
-  // For Google/Outlook web: use date-only all-day format YYYYMMDD
   function ymdCompact(d) {
     return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
   }
@@ -184,29 +223,20 @@
   }
 
   function buildBirthdayEvent(r) {
-    // r.nextBirthday is already computed as next upcoming birthday (local date at midnight)
     const date = r.nextBirthday;
     if (!date || isNaN(date.getTime())) return null;
 
     const title = `${(r.name || "Family member").trim()} — Birthday`;
     const desc = `Birthday reminder for ${((r.name || "family member").trim())}.`;
 
-    // All-day event: end date is next day (per iCal/Google convention)
     const startYmd = ymdCompact(date);
     const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
     const endYmd = ymdCompact(end);
 
-    return {
-      title,
-      description: desc,
-      date,
-      startYmd,
-      endYmd
-    };
+    return { title, description: desc, date, startYmd, endYmd };
   }
 
   function googleCalendarUrl(ev) {
-    // https://calendar.google.com/calendar/render?action=TEMPLATE&text=...&dates=YYYYMMDD/YYYYMMDD&details=...
     const base = "https://calendar.google.com/calendar/render?action=TEMPLATE";
     const text = `&text=${safeTextForUrl(ev.title)}`;
     const dates = `&dates=${ev.startYmd}/${ev.endYmd}`;
@@ -215,9 +245,6 @@
   }
 
   function outlookCalendarUrl(ev) {
-    // Outlook web deeplink compose
-    // startdt/enddt expect ISO; we use date-only at midnight local, but supply full ISO with Z-less by using local components.
-    // Outlook accepts "YYYY-MM-DD" for all-day with "allday=true" plus startdt/enddt.
     const start = ymdLocal(ev.date);
     const end = ymdLocal(new Date(ev.date.getFullYear(), ev.date.getMonth(), ev.date.getDate() + 1));
 
@@ -231,7 +258,6 @@
   }
 
   function icsEscape(s) {
-    // Minimal iCalendar escaping
     return String(s || "")
       .replace(/\\/g, "\\\\")
       .replace(/\n/g, "\\n")
@@ -243,7 +269,6 @@
     const uid = `family-timeline-${Date.now()}-${Math.random().toString(16).slice(2)}@local`;
     const dtstamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 
-    // All-day DTSTART/DTEND are DATE values (no time)
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -368,6 +393,10 @@
     const phoneDisplay = fmtPhoneDisplay(r?.phone);
     const phoneHref = phoneToTelHref(phoneDisplay);
 
+    // Offspring (Option A)
+    const offspring = normalizeNameArray(r?.offspring);
+    const grandchildren = normalizeNameArray(r?.grandchildren);
+
     return {
       ...r,
       name: (r?.name ?? "").toString(),
@@ -383,7 +412,10 @@
 
       _email: email,
       _phoneDisplay: phoneDisplay,
-      _phoneHref: phoneHref
+      _phoneHref: phoneHref,
+
+      _offspring: offspring,
+      _grandchildren: grandchildren
     };
   }
 
@@ -710,7 +742,7 @@
   }
 
   // ============================
-  // Calendar UI wiring (NEW)
+  // Calendar UI wiring
   // ============================
   function closeAllCalMenus(exceptMenu) {
     document.querySelectorAll(".calMenu").forEach((m) => {
@@ -720,7 +752,6 @@
   }
 
   function buildCalChooser(r) {
-    // Only for living people with a nextBirthday date
     if (r.status !== "alive" || !r.nextBirthday) return null;
 
     const ev = buildBirthdayEvent(r);
@@ -771,7 +802,6 @@
       menu.hidden = !willOpen;
     });
 
-    // Clicking anywhere else closes it
     wrap.addEventListener("click", (e) => e.stopPropagation());
     wrap.appendChild(btn);
     wrap.appendChild(menu);
@@ -779,7 +809,6 @@
     return wrap;
   }
 
-  // Close menus on outside click / scroll / escape
   document.addEventListener("click", () => closeAllCalMenus());
   document.addEventListener("scroll", () => closeAllCalMenus(), { passive: true });
   document.addEventListener("keydown", (e) => {
@@ -880,6 +909,25 @@
       } else {
         v.textContent = (text == null || text === "") ? "—" : String(text);
       }
+
+      d.appendChild(l);
+      d.appendChild(v);
+      return d;
+    };
+
+    const makeListRow = (label, items) => {
+      const list = Array.isArray(items) ? items : [];
+      if (!list.length) return null;
+
+      const d = document.createElement("div");
+      d.className = "row listRow";
+
+      const l = document.createElement("span");
+      l.textContent = label;
+
+      const v = document.createElement("span");
+      v.className = "value listValue";
+      v.textContent = joinNameList(list, " • ");
 
       d.appendChild(l);
       d.appendChild(v);
@@ -1001,11 +1049,18 @@
           card.appendChild(makeLinkRow("Email", "mailto:" + r._email, r._email));
         }
 
-        // Calendar chooser (living + birthdate)
+        // Calendar chooser (living + nextBirthday)
         if (!isMemorial && r.nextBirthday) {
           const cal = buildCalChooser(r);
           if (cal) card.appendChild(cal);
         }
+
+        // Offspring (Option A) display
+        const offspringRow = makeListRow("Offspring", r._offspring);
+        if (offspringRow) card.appendChild(offspringRow);
+
+        const grandsRow = makeListRow("Grandchildren", r._grandchildren);
+        if (grandsRow) card.appendChild(grandsRow);
 
         if (isMemorial && r.tribute && r.tribute.trim()) {
           const tribute = document.createElement("div");
@@ -1180,3 +1235,4 @@
 
   bootstrap();
 })();
+
