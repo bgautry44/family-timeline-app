@@ -233,10 +233,10 @@
     return list.length ? list.join(bullet) : "";
   }
 
-  // ============================
+   // ============================
 // Events
 // ============================
-function normalizeEvents(v, maxItems = 80, order = "desc") {
+function normalizeEvents(v, maxItems = 80, order = "asc") {
   // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
   const arr = Array.isArray(v) ? v : [];
   const out = [];
@@ -244,30 +244,41 @@ function normalizeEvents(v, maxItems = 80, order = "desc") {
   for (const item of arr) {
     if (!item || typeof item !== "object") continue;
 
-    const title = String(item.title || "").replace(/\s+/g, " ").trim();
-    const note = String(item.note || "").replace(/\s+/g, " ").trim();
+    const titleRaw = String(item.title ?? "").replace(/\s+/g, " ").trim();
+    const note = String(item.note ?? "").replace(/\s+/g, " ").trim();
+
+    // Date may be missing/invalid; keep event anyway
     const d = parseISODate(item.date);
 
-    if (!title || !d) continue;
+    // Fallback title if missing (keeps UI stable)
+    const title = titleRaw || "Event";
 
     out.push({
-      date: d,              // Date object (from parseISODate)
-      dateRaw: item.date,   // Original string
+      date: d || null,                 // Date object or null
+      dateRaw: item.date || "",        // original string (or blank)
       title,
       note
     });
-
-    // NOTE: do NOT break here; we want to sort the full set first
-    // and then take the top `maxItems` after sorting.
   }
 
-  const dir = order === "asc" ? 1 : -1;
+  const dir = order === "desc" ? -1 : 1;
 
-  // Sort by date, then title
   out.sort((a, b) => {
-    const at = a.date.getTime();
-    const bt = b.date.getTime();
+    const at = a.date ? a.date.getTime() : NaN;
+    const bt = b.date ? b.date.getTime() : NaN;
 
+    const aValid = Number.isFinite(at);
+    const bValid = Number.isFinite(bt);
+
+    // Missing/invalid dates go last
+    if (!aValid && !bValid) {
+      // If both dates invalid, sort by title for stable output
+      return a.title.localeCompare(b.title);
+    }
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+
+    // Both valid: compare by date, then title
     if (at !== bt) return (at - bt) * dir;
     return a.title.localeCompare(b.title);
   });
