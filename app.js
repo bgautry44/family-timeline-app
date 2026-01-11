@@ -827,10 +827,8 @@ function fmtEventDate(d) {
     .doc(state.familyId)
     .collection("announcements");
 
+  // Robust ordering: only applies if fields/index exist; otherwise falls back
   let query = ref;
-
-  // If you decide NOT to use pinned/createdAt fields yet, this still works.
-  // This try/catch avoids breaking if indexes/fields don't exist.
   try {
     query = query.orderBy("pinned", "desc").orderBy("createdAt", "desc");
   } catch (e) {
@@ -845,6 +843,7 @@ function fmtEventDate(d) {
     state.announcements = [];
   }
 }
+
 
     await ensureMemberDoc(state.user);
 
