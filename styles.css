@@ -457,7 +457,7 @@ h1{
   color: var(--muted);
   letter-spacing:.2px;
   margin-bottom:8px;
-  font-weight:700;
+  font-weight:400;
   text-transform: uppercase;
 }
 
@@ -494,9 +494,9 @@ h1{
 
 /* IMPORTANT: event title should NOT look like a header */
 .events .eventTitle{
-  font-size:13px;
+  font-size:12px;
   color: var(--text);
-  font-weight:500; /* was bold; now normal-ish */
+  font-weight:400; /* was bold; now normal-ish */
   line-height:1.25;
 }
 
