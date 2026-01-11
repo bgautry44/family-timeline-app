@@ -488,6 +488,11 @@ h1{
   white-space:nowrap;
 }
 
+  .eventDate.isUnknownDate {
+  opacity: 0.7;
+  font-style: italic;
+}
+
 .eventText{
   min-width:0;
 }
