@@ -660,9 +660,9 @@ h1{
 
 /* IMPORTANT: scoped so it won't affect other .eventTitle uses */
 .eventsBlock .eventTitle{
-  font-size:13px;
+  font-size:12px;
   color: var(--text);
-  font-weight:600;     /* was 700; this fixes “too bold” */
+  font-weight:400;     /* was 700; this fixes “too bold” */
   line-height:1.25;
 }
 
