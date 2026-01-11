@@ -752,5 +752,28 @@ label.toggle > span {
 label.toggle > span {
   margin-left: 6px !important;
 }
-/* DIAGNOSTIC: you should see a yellow background behind the toggle */
-label.toggle { background: yellow !important; }
+/* FIX: Keep checkbox + text tight (prevents "left/right justified" look) */
+label.toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+label.toggle > input#showDeceased {
+  margin: 0 !important;
+}
+
+label.toggle > span {
+  margin: 0 0 0 6px !important;   /* controls spacing */
+  padding: 0 !important;
+  flex: 0 0 auto !important;      /* prevents stretching */
+  width: auto !important;
+  text-align: left !important;
+}
+
+/* Kill the most common culprit that pushes text to the far right */
+label.toggle > span {
+  margin-left: 6px !important;    /* overrides any margin-left:auto */
+}
