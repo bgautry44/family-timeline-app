@@ -1023,7 +1023,7 @@ function fmtEventDate(d) {
       return d;
     };
 
-      const makeEventsBlock = (events) => {
+       const makeEventsBlock = (events) => {
   const list = Array.isArray(events) ? events : [];
   if (!list.length) return null;
 
@@ -1046,19 +1046,16 @@ function fmtEventDate(d) {
     const li = document.createElement("li");
     li.className = "eventItem";
 
-    // Left (date)
     const left = document.createElement("div");
     left.className = "eventDate";
 
-    // ev.date may be null (by design, for error-proofing)
     if (ev.date instanceof Date && !Number.isNaN(ev.date.getTime())) {
       left.textContent = fmtEventDate(ev.date);
     } else {
-      left.textContent = "Date unknown"; // change wording if you prefer
-      left.classList.add("isUnknownDate"); // optional CSS hook
+      left.textContent = "Date unknown";
+      left.classList.add("isUnknownDate");
     }
 
-    // Right (title + note)
     const right = document.createElement("div");
     right.className = "eventText";
 
@@ -1081,22 +1078,17 @@ function fmtEventDate(d) {
   }
 
   wrap.appendChild(ul);
+
+  if (list.length > MAX_EVENTS_PER_PERSON) {
+    const more = document.createElement("div");
+    more.className = "eventsMore";
+    more.textContent = `+${list.length - MAX_EVENTS_PER_PERSON} more`;
+    wrap.appendChild(more);
+  }
+
   return wrap;
 };
 
-   
-      if (list.length > MAX_EVENTS_PER_PERSON) {
-        const more = document.createElement("div");
-        more.className = "eventsMore";
-        more.textContent = `+${list.length - MAX_EVENTS_PER_PERSON} more`;
-        wrap.appendChild(ul);
-        wrap.appendChild(more);
-      } else {
-        wrap.appendChild(ul);
-      }
-
-      return wrap;
-    };
 
     for (const r of filtered) {
       try {
