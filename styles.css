@@ -752,3 +752,5 @@ label.toggle > span {
 label.toggle > span {
   margin-left: 6px !important;
 }
+/* DIAGNOSTIC: you should see a yellow background behind the toggle */
+label.toggle { background: yellow !important; }
