@@ -557,6 +557,72 @@ h1{
   justify-content:center;
 }
 
+/* ============================
+   Events block
+============================ */
+.events{
+  margin-top:10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top:10px;
+}
+
+.eventsTitle{
+  font-size:12px;
+  color: var(--muted);
+  letter-spacing:.2px;
+  margin-bottom:8px;
+  font-weight:700;
+  text-transform: uppercase;
+}
+
+.eventsList{
+  list-style:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.eventItem{
+  display:grid;
+  grid-template-columns: 84px 1fr;
+  gap:10px;
+  align-items:start;
+}
+
+.eventDate{
+  font-size:12px;
+  color: var(--muted);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:999px;
+  padding:4px 8px;
+  text-align:center;
+  background: rgba(10,14,20,.35);
+  white-space:nowrap;
+}
+
+.eventTitle{
+  font-size:13px;
+  color: var(--text);
+  font-weight:700;
+  line-height:1.2;
+}
+
+.eventNote{
+  margin-top:2px;
+  font-size:12px;
+  color: var(--muted);
+  line-height:1.25;
+}
+
+.eventsMore{
+  margin-top:8px;
+  font-size:12px;
+  color: var(--muted);
+  opacity:.9;
+}
+
 .modal__nav:active{ transform: translateY(1px); }
 
 @media (max-width: 520px){
