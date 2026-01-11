@@ -666,6 +666,12 @@ h1{
   line-height:1.25;
 }
 
+  /* Events: make title normal (scoped override) */
+.eventsBlock .eventTitle{
+  font-size: 12px;
+  font-weight: 400;   /* or 400 for normal */
+}
+
 /* Note lines sit under the row, aligned with title column */
 .eventsBlock .eventNote{
   margin: 0 0 6px;
