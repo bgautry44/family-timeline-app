@@ -143,9 +143,9 @@
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
+  // Keep this name to avoid refactors; make it full date to match your preference
   function fmtMonthYear(d) {
-    if (!d) return "";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return fmtDate(d);
   }
 
   // ============================
@@ -215,7 +215,6 @@
   // ============================
   function normalizeEvents(v, maxItems = 80) {
     // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
-    // Accept a few “bad shapes” safely (strings ignored unless you want parsing later)
     let arr = Array.isArray(v) ? v : [];
     const out = [];
 
@@ -238,7 +237,6 @@
       if (out.length >= maxItems) break;
     }
 
-    // Sort ascending by date, then title
     out.sort((a, b) => {
       const at = a.date.getTime();
       const bt = b.date.getTime();
@@ -437,6 +435,7 @@
     const phoneDisplay = fmtPhoneDisplay(r?.phone);
     const phoneHref = phoneToTelHref(phoneDisplay);
 
+    // Children: prefer "children", fall back to old "offspring" if present
     const children = normalizeNameArray((r && r.children != null) ? r.children : r?.offspring);
     const grandchildren = normalizeNameArray(r?.grandchildren);
 
@@ -981,82 +980,61 @@
       return d;
     };
 
-      function makeEventRow(dateText, titleText) {
-  const d = document.createElement("div");
-  d.className = "eventRow";
+    // ===== Events UI (corrected) =====
+    function makeEventRow(dateText, titleText) {
+      const d = document.createElement("div");
+      d.className = "eventRow";
 
-  const left = document.createElement("span");
-  left.className = "eventDate";
-  left.textContent = dateText;
+      const left = document.createElement("span");
+      left.className = "eventDate";
+      left.textContent = dateText;
 
-  const right = document.createElement("span");
-  right.className = "eventTitle";
-  right.textContent = titleText;
+      const right = document.createElement("span");
+      right.className = "eventTitle";
+      right.textContent = titleText;
 
-  d.appendChild(left);
-  d.appendChild(right);
-  return d;
-}
+      d.appendChild(left);
+      d.appendChild(right);
+      return d;
+    }
 
     const makeEventsBlock = (events) => {
       const list = Array.isArray(events) ? events : [];
       if (!list.length) return null;
 
       const wrap = document.createElement("div");
-      wrap.className = "events";
+      wrap.className = "eventsBlock";
 
       const h = document.createElement("div");
-      h.className = "eventsTitle";
+      h.className = "eventsHdr";
       h.textContent = "Events";
       wrap.appendChild(h);
-
-      const ul = document.createElement("ul");
-      ul.className = "eventsList";
 
       const show = list.slice(0, MAX_EVENTS_PER_PERSON);
 
       for (const ev of show) {
-        const li = document.createElement("li");
-        li.className = "eventItem";
-
-        const left = document.createElement("div");
-        left.className = "eventDate";
-        left.textContent = fmtMonthYear(ev.date);
-
-        const right = document.createElement("div");
-        right.className = "eventText";
-
-        const t = document.createElement("div");
-        t.className = "eventTitle";
-        t.textContent = ev.title;
-
-        right.appendChild(t);
+        const dateTxt = fmtDate(ev.date); // full date: Month Day, Year
+        const titleTxt = (ev.title || "—").toString();
+        wrap.appendChild(makeEventRow(dateTxt, titleTxt));
 
         if (ev.note) {
-          const n = document.createElement("div");
-          n.className = "eventNote";
-          n.textContent = ev.note;
-          right.appendChild(n);
+          const note = document.createElement("div");
+          note.className = "eventNote";
+          note.textContent = ev.note;
+          wrap.appendChild(note);
         }
-
-        li.appendChild(left);
-        li.appendChild(right);
-        ul.appendChild(li);
       }
 
-      // If there are more than MAX, show a subtle “+X more” line
       if (list.length > MAX_EVENTS_PER_PERSON) {
         const more = document.createElement("div");
         more.className = "eventsMore";
         more.textContent = `+${list.length - MAX_EVENTS_PER_PERSON} more`;
-        wrap.appendChild(ul);
         wrap.appendChild(more);
-      } else {
-        wrap.appendChild(ul);
       }
 
       return wrap;
     };
+    // ===== End Events UI =====
 
     for (const r of filtered) {
       try {
@@ -1186,7 +1164,7 @@
         const grandsRow = makeListRow("Grandchildren", r._grandchildren);
         if (grandsRow) card.appendChild(grandsRow);
 
-        // Events (NEW)
+        // Events
         const eventsBlock = makeEventsBlock(r._events);
         if (eventsBlock) card.appendChild(eventsBlock);
 
