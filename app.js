@@ -1019,51 +1019,68 @@ function normalizeEvents(v, maxItems = 80, order = "asc") {
       return d;
     };
 
-    const makeEventsBlock = (events) => {
-      const list = Array.isArray(events) ? events : [];
-      if (!list.length) return null;
+      const makeEventsBlock = (events) => {
+  const list = Array.isArray(events) ? events : [];
+  if (!list.length) return null;
 
-      const wrap = document.createElement("div");
-      wrap.className = "events";
+  const wrap = document.createElement("div");
+  wrap.className = "events";
 
-      const h = document.createElement("div");
-      h.className = "eventsTitle";
-      h.textContent = "Events";
-      wrap.appendChild(h);
+  const h = document.createElement("div");
+  h.className = "eventsTitle";
+  h.textContent = "Events";
+  wrap.appendChild(h);
 
-      const ul = document.createElement("ul");
-      ul.className = "eventsList";
+  const ul = document.createElement("ul");
+  ul.className = "eventsList";
 
-      const show = list.slice(0, MAX_EVENTS_PER_PERSON);
+  const show = list.slice(0, MAX_EVENTS_PER_PERSON);
 
-      for (const ev of show) {
-        const li = document.createElement("li");
-        li.className = "eventItem";
+  for (const ev of show) {
+    if (!ev || typeof ev !== "object") continue;
 
-        const left = document.createElement("div");
-        left.className = "eventDate";
-        left.textContent = fmtEventDate(ev.date);
+    const li = document.createElement("li");
+    li.className = "eventItem";
 
-        const right = document.createElement("div");
-        right.className = "eventText";
+    // Left (date)
+    const left = document.createElement("div");
+    left.className = "eventDate";
 
-        const t = document.createElement("div");
-        t.className = "eventTitle";
-        t.textContent = ev.title;
-        right.appendChild(t);
+    // ev.date may be null (by design, for error-proofing)
+    if (ev.date instanceof Date && !Number.isNaN(ev.date.getTime())) {
+      left.textContent = fmtEventDate(ev.date);
+    } else {
+      left.textContent = "Date unknown"; // change wording if you prefer
+      left.classList.add("isUnknownDate"); // optional CSS hook
+    }
 
-        if (ev.note) {
-          const n = document.createElement("div");
-          n.className = "eventNote";
-          n.textContent = ev.note;
-          right.appendChild(n);
-        }
+    // Right (title + note)
+    const right = document.createElement("div");
+    right.className = "eventText";
 
-        li.appendChild(left);
-        li.appendChild(right);
-        ul.appendChild(li);
-      }
+    const t = document.createElement("div");
+    t.className = "eventTitle";
+    t.textContent = String(ev.title || "Event").trim() || "Event";
+    right.appendChild(t);
 
+    const noteText = String(ev.note || "").trim();
+    if (noteText) {
+      const n = document.createElement("div");
+      n.className = "eventNote";
+      n.textContent = noteText;
+      right.appendChild(n);
+    }
+
+    li.appendChild(left);
+    li.appendChild(right);
+    ul.appendChild(li);
+  }
+
+  wrap.appendChild(ul);
+  return wrap;
+};
+
+   
       if (list.length > MAX_EVENTS_PER_PERSON) {
         const more = document.createElement("div");
         more.className = "eventsMore";
