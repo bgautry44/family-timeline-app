@@ -964,7 +964,8 @@ function fmtEventDate(d) {
       }
       return host;
     };
-      const makeAnnouncementsBlock = (posts) => {
+     
+     const makeAnnouncementsBlock = (posts) => {
   const list = Array.isArray(posts) ? posts : [];
   if (!list.length) return null;
 
@@ -982,27 +983,33 @@ function fmtEventDate(d) {
   for (const p of list) {
     if (!p || typeof p !== "object") continue;
 
-    // Primary message text
     const text = String(p.text ?? p.message ?? "").trim();
     if (!text) continue;
 
     const li = document.createElement("li");
     li.className = "annItem";
 
-    // Date line (optional): prefer eventAt, then date, then createdAt
+    // Date line (optional)
     const when =
-      (p.eventAt && typeof p.eventAt.toDate === "function") ? p.eventAt.toDate()
-      : parseISODate(p.date)
-      || ((p.createdAt && typeof p.createdAt.toDate === "function") ? p.createdAt.toDate() : null);
+      (p.eventAt && typeof p.eventAt.toDate === "function")
+        ? p.eventAt.toDate()
+        : parseISODate(p.date)
+        || (p.createdAt && typeof p.createdAt.toDate === "function"
+            ? p.createdAt.toDate()
+            : null);
 
     if (when instanceof Date && !Number.isNaN(when.getTime())) {
       const d = document.createElement("div");
       d.className = "annDate";
-      d.textContent = when.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      d.textContent = when.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
       li.appendChild(d);
     }
 
-    // Body text
+    // Main text
     const body = document.createElement("div");
     body.className = "annText";
     body.textContent = text;
@@ -1020,7 +1027,6 @@ function fmtEventDate(d) {
     ul.appendChild(li);
   }
 
-  // If nothing valid made it in, don't show the panel
   if (!ul.children.length) return null;
 
   wrap.appendChild(ul);
