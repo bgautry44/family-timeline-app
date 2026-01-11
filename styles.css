@@ -114,7 +114,7 @@ h1{
 
 .controls input{
   flex:1 1 220px;
-  min-width:160px;
+  min-width:140px;
   padding:10px 12px;
   border:1px solid var(--border);
   border-radius:12px;
@@ -161,9 +161,18 @@ h1{
 
 .calBtn:active{ transform: translateY(1px); }
 .calBtn:hover{ border-color: rgba(255,122,26,0.55); }
-
-
 .calBtn:active{ transform: translateY(1px); }
+
+/* Keep the Show deceased pill on one line */
+.toggle{
+  flex: 0 0 auto;          /* don't shrink */
+  white-space: nowrap;     /* don't wrap text */
+}
+
+/* If your checkbox+text ever wraps inside the label */
+.toggle span{
+  white-space: nowrap;
+}
 
 .meta{
   display:flex;
