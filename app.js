@@ -6,6 +6,9 @@
   // ============================
   const FAMILY_ID = "e538i47rIjVIS7xGdCtC";
 
+  // How many events to show on a card by default (keeps cards readable)
+  const MAX_EVENTS_PER_PERSON = 6;
+
   // ============================
   // Firebase (compat)
   // ============================
@@ -140,6 +143,11 @@
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
+  function fmtMonthYear(d) {
+    if (!d) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  }
+
   // ============================
   // Contact info (fail-safe)
   // ============================
@@ -166,7 +174,7 @@
   }
 
   // ============================
-  // Children (Option A) helpers
+  // Children / Grandchildren helpers
   // ============================
   function normalizeNameArray(v, maxItems = 30) {
     let arr = [];
@@ -200,6 +208,45 @@
   function joinNameList(arr, bullet = " • ") {
     const list = Array.isArray(arr) ? arr : [];
     return list.length ? list.join(bullet) : "";
+  }
+
+  // ============================
+  // Events (NEW)
+  // ============================
+  function normalizeEvents(v, maxItems = 80) {
+    // Expect: [{date:"YYYY-MM-DD", title:"...", note:"..."}]
+    // Accept a few “bad shapes” safely (strings ignored unless you want parsing later)
+    let arr = Array.isArray(v) ? v : [];
+    const out = [];
+
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue;
+
+      const title = String(item.title || "").replace(/\s+/g, " ").trim();
+      const note = String(item.note || "").replace(/\s+/g, " ").trim();
+      const d = parseISODate(item.date);
+
+      if (!title || !d) continue;
+
+      out.push({
+        date: d,
+        dateRaw: item.date,
+        title,
+        note
+      });
+
+      if (out.length >= maxItems) break;
+    }
+
+    // Sort ascending by date, then title
+    out.sort((a, b) => {
+      const at = a.date.getTime();
+      const bt = b.date.getTime();
+      if (at !== bt) return at - bt;
+      return a.title.localeCompare(b.title);
+    });
+
+    return out;
   }
 
   // ============================
@@ -390,11 +437,10 @@
     const phoneDisplay = fmtPhoneDisplay(r?.phone);
     const phoneHref = phoneToTelHref(phoneDisplay);
 
-    // Children (preferred) with fallback to legacy "offspring"
-    const children = normalizeNameArray(
-      (r && r.children != null) ? r.children : r?.offspring
-    );
+    const children = normalizeNameArray((r && r.children != null) ? r.children : r?.offspring);
     const grandchildren = normalizeNameArray(r?.grandchildren);
+
+    const events = normalizeEvents(r?.events);
 
     return {
       ...r,
@@ -414,7 +460,9 @@
       _phoneHref: phoneHref,
 
       _children: children,
-      _grandchildren: grandchildren
+      _grandchildren: grandchildren,
+
+      _events: events
     };
   }
 
@@ -933,6 +981,66 @@
       return d;
     };
 
+    const makeEventsBlock = (events) => {
+      const list = Array.isArray(events) ? events : [];
+      if (!list.length) return null;
+
+      const wrap = document.createElement("div");
+      wrap.className = "events";
+
+      const h = document.createElement("div");
+      h.className = "eventsTitle";
+      h.textContent = "Events";
+      wrap.appendChild(h);
+
+      const ul = document.createElement("ul");
+      ul.className = "eventsList";
+
+      const show = list.slice(0, MAX_EVENTS_PER_PERSON);
+
+      for (const ev of show) {
+        const li = document.createElement("li");
+        li.className = "eventItem";
+
+        const left = document.createElement("div");
+        left.className = "eventDate";
+        left.textContent = fmtMonthYear(ev.date);
+
+        const right = document.createElement("div");
+        right.className = "eventText";
+
+        const t = document.createElement("div");
+        t.className = "eventTitle";
+        t.textContent = ev.title;
+
+        right.appendChild(t);
+
+        if (ev.note) {
+          const n = document.createElement("div");
+          n.className = "eventNote";
+          n.textContent = ev.note;
+          right.appendChild(n);
+        }
+
+        li.appendChild(left);
+        li.appendChild(right);
+        ul.appendChild(li);
+      }
+
+      // If there are more than MAX, show a subtle “+X more” line
+      if (list.length > MAX_EVENTS_PER_PERSON) {
+        const more = document.createElement("div");
+        more.className = "eventsMore";
+        more.textContent = `+${list.length - MAX_EVENTS_PER_PERSON} more`;
+        wrap.appendChild(ul);
+        wrap.appendChild(more);
+      } else {
+        wrap.appendChild(ul);
+      }
+
+      return wrap;
+    };
+
     for (const r of filtered) {
       try {
         const isMemorial = r.status === "deceased";
@@ -1054,12 +1162,16 @@
           if (cal) card.appendChild(cal);
         }
 
-        // Children + Grandchildren display
+        // Children + Grandchildren
         const childrenRow = makeListRow("Children", r._children);
         if (childrenRow) card.appendChild(childrenRow);
 
         const grandsRow = makeListRow("Grandchildren", r._grandchildren);
         if (grandsRow) card.appendChild(grandsRow);
+
+        // Events (NEW)
+        const eventsBlock = makeEventsBlock(r._events);
+        if (eventsBlock) card.appendChild(eventsBlock);
 
         if (isMemorial && r.tribute && r.tribute.trim()) {
           const tribute = document.createElement("div");
